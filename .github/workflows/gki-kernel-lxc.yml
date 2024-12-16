@@ -264,24 +264,23 @@ jobs:
             make mrproper
             
             cd ..
-          fi
 
 
-          if [ ! -z ${{ vars.EXPECTED_SIZE }} ] && [ ! -z ${{ vars.EXPECTED_HASH }} ]; then
+            if [ ! -z ${{ vars.EXPECTED_SIZE }} ] && [ ! -z ${{ vars.EXPECTED_HASH }} ]; then
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
             export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
-          fi
-          if [ -e build/build.sh ]; then
-            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang"
-          else
-            tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
-          fi
+            fi
+            if [ -e build/build.sh ]; then
+              LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang"
+            else
+              tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
+            fi
 
 
-          # Clean up after build
-          cd common/
-          make clean
-          cd ..
+            # Clean up after build
+            cd common/
+            make clean
+            cd ..
 
       - name: Prepare artifacts
         id: prepareArtifacts
