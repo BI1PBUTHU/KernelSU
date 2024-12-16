@@ -254,7 +254,7 @@ jobs:
             fi
 
             # Save the modified .config as gki_defconfig in the correct directory
-            cp .config ../arch/arm64/configs/gki_defconfig
+            mv .config ../arch/arm64/configs/gki_defconfig
             echo "[+] Saved modified .config as gki_defconfig"
 
             make mrproper
