@@ -332,6 +332,7 @@ jobs:
 
           # 保存修改后的 .config 为 defconfig
           make savedefconfig
+          rm .config
           if [ -f "defconfig" ]; then
             echo "[+] Generated defconfig successfully"
           else
@@ -344,7 +345,7 @@ jobs:
           mv defconfig arch/arm64/configs/gki_defconfig
 
           # make mrproper
-          rm .config
+          
 
           cd ..
 
