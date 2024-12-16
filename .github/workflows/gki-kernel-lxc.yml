@@ -251,10 +251,7 @@ jobs:
             # Debug: 验证必要的配置项是否被正确设置为 y
             REQUIRED_CONFIGS=(
               CONFIG_CGROUPS
-              CONFIG_NAMESPACES
-              CONFIG_INET
-              CONFIG_NET
-              CONFIG_NETFILTER
+              CONFIG_NAMESPACES 
               CONFIG_NET_NS
               CONFIG_UTS_NS
               CONFIG_OVERLAY_FS
@@ -269,6 +266,10 @@ jobs:
               CONFIG_KEYS
               CONFIG_VETH
               CONFIG_BRIDGE
+              CONFIG_INET
+              CONFIG_NET
+              CONFIG_NETFILTER
+              CONFIG_NETFILTER_ADVANCED
               CONFIG_BRIDGE_NETFILTER
               CONFIG_BRIDGE_VLAN_FILTERING
               CONFIG_IP_NF_FILTER
@@ -299,7 +300,6 @@ jobs:
               CONFIG_INET_ESP
               CONFIG_NETFILTER_XT_MATCH_BPF
               CONFIG_VXLAN
-              CONFIG_BRIDGE_VLAN_FILTERING
               CONFIG_IPVLAN
               CONFIG_MACVLAN
               CONFIG_DUMMY
@@ -311,11 +311,6 @@ jobs:
               CONFIG_BTRFS_FS_POSIX_ACL
               CONFIG_HUGETLB_PAGE
               CONFIG_CGROUP_HUGETLB
-              CONFIG_BRIDGE
-              CONFIG_INET
-              CONFIG_NET
-              CONFIG_NETFILTER
-              CONFIG_NETFILTER_ADVANCED
               CONFIG_IPV6
             )
 
