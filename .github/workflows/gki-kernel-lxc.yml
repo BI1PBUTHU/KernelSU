@@ -211,6 +211,7 @@ jobs:
           # Ensure .config exists or create a default one
           if [ ! -f ".config" ]; then
             make gki_defconfig
+            echo "[+] Generated gki_defconfig"
           fi
 
           # Define the path to the config fragment
@@ -218,9 +219,22 @@ jobs:
 
           # Check if LXC/Docker support is enabled
           if [ "${{ inputs.enable_lxc_docker }}" = "true" ]; then
-            # Append the configuration fragment to .config
-            cat "$CONFIG_FRAGMENT" >> .config
-            echo "[+] Added LXC/Docker configurations from $CONFIG_FRAGMENT to .config"
+            # Verify that the config fragment exists
+            if [ ! -f "$CONFIG_FRAGMENT" ]; then
+              echo "[-] Configuration fragment not found at $CONFIG_FRAGMENT"
+              exit 1
+            fi
+
+            echo "[+] Merging LXC/Docker configurations from $CONFIG_FRAGMENT into .config"
+            # Use merge_config.sh to merge the configuration fragment
+            ./scripts/kconfig/merge_config.sh -m .config "$CONFIG_FRAGMENT"
+
+            # Debug: Show the last few lines of .config after merging
+            echo "[+] Last 20 lines of .config after merging config fragment:"
+            tail -n 20 .config
+
+            # Debug: Check if CONFIG_LXC is set
+            grep "^CONFIG_LXC=y" .config && echo "[+] CONFIG_LXC is set correctly" || { echo "[-] CONFIG_LXC is not set correctly"; exit 1; }
           fi
 
           # Ensure all new options are set and existing ones aren't changed
