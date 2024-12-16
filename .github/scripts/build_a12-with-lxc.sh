@@ -1,127 +1,110 @@
-name: Build Kernel with Docker and LXC Integration - Android 12
+#!/bin/bash
+set -euo pipefail
 
-on:
-  push:
-    branches: ["main", "ci", "checkci"]
-    paths:
-      - ".github/workflows/build-kernel-a12-with-docker-lxc.yml"
-      - ".github/workflows/gki-kernel-with-lxc.yml"
-      - ".github/scripts/build_a12-with-lxc.sh"
-      - "kernel/**"
-  pull_request:
-    branches: ["main"]
-    paths:
-      - ".github/workflows/build-kernel-a12-with-docker-lxc.yml"
-      - ".github/workflows/gki-kernel-with-lxc.yml"
-      - ".github/scripts/build_a12-with-lxc.sh"
-      - "kernel/**"
-  workflow_call:
+build_from_image() {
+    local dir="$1"
 
-jobs:
-  build-kernel-with-docker-lxc:
-    # 定义矩阵策略
-    strategy:
-      matrix:
-        sub_level: [198, 205, 209, 218]
-        os_patch_level: [2024-01, 2024-03, 2024-05, 2024-08]
+    # 设置标题
+    export TITLE="kernel-aarch64-${dir//Image-/}"
+    echo "[+] title: $TITLE"
 
-    # 调用可复用工作流
-    uses: ./.github/workflows/gki-kernel-with-lxc.yml
+    # 设置补丁级别
+    export PATCH_LEVEL
+    PATCH_LEVEL=$(echo "$dir" | awk -F_ '{ print $2}')
+    echo "[+] patch level: $PATCH_LEVEL"
 
-    # 传递输入参数
-    with:
-      version: android12-5.10
-      version_name: "android12-5.10.${{ matrix.sub_level }}"
-      tag: "android12-5.10-${{ matrix.os_patch_level }}"
-      os_patch_level: "${{ matrix.os_patch_level }}"
-      patch_path: "5.10"
-      ENABLE_LXC: true
-      ENABLE_DOCKER: true
-      # 其他需要传递给 gki-kernel-with-lxc.yml 的参数
+    echo '[+] Download prebuilt ramdisk'
+    GKI_URL="https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-${PATCH_LEVEL}_r1.zip"
+    FALLBACK_URL="https://dl.google.com/android/gki/gki-certified-boot-android12-5.10-2023-01_r1.zip"
+    status=$(curl -sL -w "%{http_code}" "$GKI_URL" -o /dev/null)
+    if [ "$status" = "200" ]; then
+        curl -Lo gki-kernel.zip "$GKI_URL"
+    else
+        echo "[+] $GKI_URL not found, using $FALLBACK_URL"
+        curl -Lo gki-kernel.zip "$FALLBACK_URL"
+    fi
+    unzip gki-kernel.zip && rm gki-kernel.zip
 
-    # 传递密钥
-    secrets:
-      BOOT_SIGN_KEY: ${{ secrets.BOOT_SIGN_KEY }}
-      CHAT_ID: ${{ secrets.CHAT_ID }}
-      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-      MESSAGE_THREAD_ID: ${{ secrets.MESSAGE_THREAD_ID }}
+    echo '[+] Unpack prebuilt boot.img'
+    BOOT_IMG=$(find . -maxdepth 1 -name "boot*.img")
+    "$UNPACK_BOOTIMG" --boot_img="$BOOT_IMG"
+    rm "$BOOT_IMG"
 
-    # 定义环境变量
-    env:
-      ENABLE_LXC: true
-      ENABLE_DOCKER: true
-      # 其他全局环境变量
+    echo '[+] Building Image.gz'
+    "$GZIP" -n -k -f -9 Image > Image.gz
 
-  upload-artifacts:
-    needs: build-kernel-with-docker-lxc
-    runs-on: ubuntu-latest
-    if: >
-      ( github.event_name != 'pull_request' && github.ref == 'refs/heads/main' )
-      || github.ref_type == 'tag'
-      || github.ref == 'refs/heads/ci'
-    env:
-      CHAT_ID: ${{ secrets.CHAT_ID }}
-      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-      MESSAGE_THREAD_ID: ${{ secrets.MESSAGE_THREAD_ID }}
-      COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-      COMMIT_URL: ${{ github.event.head_commit.url }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+    # 启用 LXC 和 Docker 集成
+    if [ "${ENABLE_LXC:-false}" = "true" ] || [ "${ENABLE_DOCKER:-false}" = "true" ]; then
+        echo "[+] Enabling LXC and/or Docker integration"
 
-      - uses: actions/checkout@v4
-        with:
-          path: KernelSU
-          fetch-depth: 0
+        cd "$GITHUB_WORKSPACE/kernel_workspace/android-kernel" || exit 1
 
-      - name: List artifacts
-        run: |
-          tree
+        # 克隆支持仓库
+        rm -rf utils
+        git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
 
-      - name: Download prebuilt toolchain
-        run: |
-          AOSP_MIRROR=https://android.googlesource.com
-          BRANCH=main-kernel-build-2024
-          git clone "$AOSP_MIRROR/platform/prebuilts/build-tools" -b "$BRANCH" --depth 1 build-tools
-          git clone "$AOSP_MIRROR/kernel/prebuilts/build-tools" -b "$BRANCH" --depth 1 kernel-build-tools
-          git clone "$AOSP_MIRROR/platform/system/tools/mkbootimg" -b "$BRANCH" --depth 1
-          pip3 install telethon
+        echo 'source "utils/Kconfig"' >> "Kconfig"
 
-      - name: Set boot sign key
-        env:
-          BOOT_SIGN_KEY: ${{ secrets.BOOT_SIGN_KEY }}
-        run: |
-          if [ -n "$BOOT_SIGN_KEY" ]; then
-            echo "$BOOT_SIGN_KEY" > ./kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
-          fi
+        # 合并多个配置选项
+        {
+            [ "${ENABLE_LXC:-false}" = "true" ] && echo "CONFIG_LXC=y"
+            [ "${ENABLE_LXC:-false}" = "true" ] && echo "CONFIG_CGROUPS=y"
+            [ "${ENABLE_LXC:-false}" = "true" ] && echo "CONFIG_MEMCG=y"
+            [ "${ENABLE_DOCKER:-false}" = "true" ] && echo "CONFIG_DOCKER=y"
+        } >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
 
-      - name: Bot session cache
-        id: bot_session_cache
-        uses: actions/cache@v4
-        if: false
-        with:
-          path: scripts/ksubot.session
-          key: ${{ runner.os }}-bot-session
+        # 移除 CONFIG_ANDROID_PARANOID_NETWORK
+        sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' "arch/${ARCH}/configs/${KERNEL_CONFIG}"
+        echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
 
-      - name: Build boot images
-        run: |
-          export AVBTOOL="$GITHUB_WORKSPACE/kernel-build-tools/linux-x86/bin/avbtool"
-          export GZIP="$GITHUB_WORKSPACE/build-tools/path/linux-x86/gzip"
-          export LZ4="$GITHUB_WORKSPACE/build-tools/path/linux-x86/lz4"
-          export MKBOOTIMG="$GITHUB_WORKSPACE/mkbootimg/mkbootimg.py"
-          export UNPACK_BOOTIMG="$GITHUB_WORKSPACE/mkbootimg/unpack_bootimg.py"
-          cd "$GITHUB_WORKSPACE/KernelSU"
-          export VERSION=$(( $(git rev-list --count HEAD) + 10200 ))
-          echo "VERSION: $VERSION"
-          cd -
-          bash "$GITHUB_WORKSPACE/KernelSU/.github/scripts/build_a12-with-lxc.sh"
+        # 应用补丁
+        chmod +x utils/runcpatch.sh
+        if [ -f "kernel/cgroup/cgroup.c" ]; then
+            sh utils/runcpatch.sh "kernel/cgroup/cgroup.c"
+        fi
 
-      - name: Display structure of boot files
-        run: ls -R
+        if [ -f "kernel/cgroup.c" ]; then
+            sh utils/runcpatch.sh "kernel/cgroup.c"
+        fi
 
-      - name: Upload images artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: boot-images-android12
-          path: Image-android12*/*.img.gz
+        if [ -f "net/netfilter/xt_qtaguid.c" ]; then
+            patch -p0 < utils/xt_qtaguid.patch
+        fi
+
+        # 重新编译内核配置
+        make olddefconfig
+    fi
+
+    echo '[+] Building boot.img'
+    "$MKBOOTIMG" --header_version 4 --kernel Image --output boot.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "$PATCH_LEVEL"
+    "$AVBTOOL" add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
+
+    echo '[+] Building boot-gz.img'
+    "$MKBOOTIMG" --header_version 4 --kernel Image.gz --output boot-gz.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "$PATCH_LEVEL"
+    "$AVBTOOL" add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
+
+    echo '[+] Building boot-lz4.img'
+    "$MKBOOTIMG" --header_version 4 --kernel Image.lz4 --output boot-lz4.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "$PATCH_LEVEL"
+    "$AVBTOOL" add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
+
+    echo '[+] Compress images'
+    for image in boot*.img; do
+        "$GZIP" -n -f -9 "$image"
+        mv "${image}.gz" "${dir//Image-/}-${image}.gz"
+    done
+
+    echo "[+] Images to upload"
+    find . -type f -name "*.gz"
+
+    # Uncomment the following line if you want to upload images automatically
+    # find . -type f -name "*.gz" -exec python3 "$GITHUB_WORKSPACE/KernelSU/scripts/ksubot.py" {} +
+}
+
+for dir in Image*; do
+    if [ -d "$dir" ]; then
+        echo "----- Building $dir -----"
+        cd "$dir" || exit 1
+        build_from_image "$dir"
+        cd ..
+    fi
+done
