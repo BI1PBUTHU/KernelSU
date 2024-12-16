@@ -285,7 +285,7 @@ jobs:
               CONFIG_DEVTMPFS
               CONFIG_DEVTMPFS_MOUNT
               CONFIG_TMPFS
-              CONFIG_CGROUP_CPUACCT
+              CONFIG_CGROUP_UACCT
               CONFIG_CGROUP_FREEZER
               CONFIG_CGROUP_SCHED
               CONFIG_CPUSETS
@@ -348,7 +348,6 @@ jobs:
                 # exit 1
               fi
             done
-          cp arch/arm64/configs/gki_defconfig 
           make mrproper
           cd ..
           # 继续构建 gki_defconfig
