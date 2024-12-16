@@ -246,30 +246,15 @@ jobs:
 
             # Ensure all new options are set and existing ones aren't changed
             make olddefconfig
-            echo "[+] Current directory: $(pwd)"
-            if [ -f ".config" ]; then
-              echo "[+] .config file exists."
-            else
-              echo "[!] .config file does not exist."
-            exit 1
-            fi
-
-  
-            echo "Checking existence of target directory: ../arch/arm64/configs"
-            if [ -d "../arch/arm64/configs" ]; then
-              echo "Target directory exists."
-            else
-              echo "Target directory does not exist"
-            fi
+            
             # Backup the original gki_defconfig if it exists
-            if [ -f "../arch/arm64/configs/gki_defconfig" ]; then
-              mv ../arch/arm64/configs/gki_defconfig ../arch/arm64/configs/gki_defconfig.bak
+            if [ -f "arch/arm64/configs/gki_defconfig" ]; then
+              mv arch/arm64/configs/gki_defconfig arch/arm64/configs/gki_defconfig.bak
               echo "[+] Backed up original gki_defconfig as gki_defconfig.bak"
             fi
 
             # Save the modified .config as gki_defconfig in the correct directory
-            mv .config gki_defconfig
-            mv gki_defconfig ../arch/arm64/configs/gki_defconfig
+            mv .config arch/arm64/configs/gki_defconfig
             echo "[+] Saved modified .config as gki_defconfig"
 
             make mrproper
