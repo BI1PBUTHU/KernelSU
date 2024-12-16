@@ -39,10 +39,12 @@ build_from_image() {
         git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
         echo 'source "utils/Kconfig"' >> "Kconfig"
 
-        echo "CONFIG_LXC=y" >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
-        echo "CONFIG_CGROUPS=y" >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
-        echo "CONFIG_MEMCG=y" >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
-        echo "CONFIG_DOCKER=y" >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
+        {
+            echo "CONFIG_LXC=y"
+            echo "CONFIG_CGROUPS=y"
+            echo "CONFIG_MEMCG=y"
+            echo "CONFIG_DOCKER=y"
+        } >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
 
         sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' "arch/${ARCH}/configs/${KERNEL_CONFIG}"
         echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> "arch/${ARCH}/configs/${KERNEL_CONFIG}"
@@ -88,7 +90,7 @@ build_from_image() {
     echo '[+] Compress images'
     for image in boot*.img; do
         "$GZIP" -n -f -9 "$image"
-        mv "$image.gz" "${dir//Image-/}-${image}.gz"
+        mv "${image}.gz" "${dir//Image-/}-${image}.gz"
     done
 
     echo "[+] Images to upload"
@@ -104,4 +106,3 @@ for dir in Image*; do
         cd ..
     fi
 done
-
