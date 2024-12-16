@@ -254,7 +254,14 @@ jobs:
             fi
 
             # Save the modified .config as gki_defconfig in the correct directory
-            mv .config arch/arm64/configs/gki_defconfig
+            make savedefconfig
+            if [ -f "defconfig" ]; then
+              mv defconfig arch/arm64/configs/gki_defconfig"
+              echo "[+] Updated gki_defconfig with savedefconfig"
+            else
+              echo "[!] Failed to generate defconfig"
+              exit 1
+            fi
             echo "[+] Saved modified .config as gki_defconfig"
 
             make mrproper
