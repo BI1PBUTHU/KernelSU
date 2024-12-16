@@ -270,7 +270,7 @@ jobs:
               CONFIG_NET
               CONFIG_NETFILTER
               CONFIG_NETFILTER_ADVANCED
-              CONFIG_BRIDGE_NETFILTER
+              # CONFIG_BRIDGE_NETFILTER
               CONFIG_BRIDGE_VLAN_FILTERING
               CONFIG_IP_NF_FILTER
               CONFIG_IP_NF_MANGLE
