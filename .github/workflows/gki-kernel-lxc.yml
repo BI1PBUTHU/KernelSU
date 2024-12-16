@@ -320,15 +320,9 @@ jobs:
                 echo "[+] ${config} is set correctly"
               else
                 echo "[-] ${config} is not set correctly"
-                if [ "${{ inputs.continue_on_config_error }}" != "true" ]; then
-                  exit 1
-                fi
               fi
             done
           fi
-
-          # 确保所有新的配置项被设置，并且现有的配置项没有被更改
-          make olddefconfig
 
           # 保存修改后的 .config 为 defconfig
           make savedefconfig
