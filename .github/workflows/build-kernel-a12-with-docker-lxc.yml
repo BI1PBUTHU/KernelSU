@@ -118,4 +118,3 @@ jobs:
         with:
           name: boot-images-android12
           path: Image-android12*/*.img.gz
-
