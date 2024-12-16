@@ -100,21 +100,3 @@ jobs:
       - name: Build boot images
         run: |
           export AVBTOOL=$GITHUB_WORKSPACE/kernel-build-tools/linux-x86/bin/avbtool
-          export GZIP=$GITHUB_WORKSPACE/build-tools/path/linux-x86/gzip
-          export LZ4=$GITHUB_WORKSPACE/build-tools/path/linux-x86/lz4
-          export MKBOOTIMG=$GITHUB_WORKSPACE/mkbootimg/mkbootimg.py
-          export UNPACK_BOOTIMG=$GITHUB_WORKSPACE/mkbootimg/unpack_bootimg.py
-          cd $GITHUB_WORKSPACE/KernelSU
-          export VERSION=$(($(git rev-list --count HEAD) + 10200))
-          echo "VERSION: $VERSION"
-          cd -
-          bash $GITHUB_WORKSPACE/KernelSU/.github/scripts/build_a12-with-lxc.sh
-
-      - name: Display structure of boot files
-        run: ls -R
-
-      - name: Upload images artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: boot-images-android12
-          path: Image-android12*/*.img.gz
