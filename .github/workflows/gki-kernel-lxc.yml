@@ -316,8 +316,16 @@ jobs:
               CONFIG_IPV6
             )
 
+            # 验证所有必需的配置项是否已正确设置
             for config in "${REQUIRED_CONFIGS[@]}"; do
-              grep -q "^${config}=[ym]" .config && echo "[+] ${config} is set correctly" || { echo "[-] ${config} is not set correctly"; exit 1; }
+              if grep -q "^${config}=[ym]" .config; then
+                echo "[+] ${config} is set correctly"
+              else
+                echo "[-] ${config} is not set correctly"
+                if [ "${{ inputs.continue_on_config_error }}" != "true" ]; then
+                  exit 1
+                fi
+              fi
             done
           fi
 
