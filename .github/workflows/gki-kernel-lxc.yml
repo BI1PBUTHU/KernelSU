@@ -144,46 +144,47 @@ jobs:
           fi
           repo status
           echo "[+] KernelSU setup done."
-
+      
       - name: Setup for LXC/Docker
         if: ${{ inputs.enable_lxc_docker == true }}
+        working-directory: $GITHUB_WORKSPACE/android-kernel/common
         run: |
-          cd $GITHUB_WORKSPACE/android-kernel/common
-          echo "[+] Applying LXC/Docker patches"
-          git apply $GITHUB_WORKSPACE/patches/lxc-docker/*.patch || echo "[-] No LXC/Docker patches found"
-
           echo "[+] Enable LXC/Docker kernel configurations"
-          # Ensure necessary kernel configurations are enabled
-          sed -i '/CONFIG_LXC=y/d' .config
-          sed -i '/CONFIG_CGROUP_PIDS=y/d' .config
-          sed -i '/CONFIG_USER_NS=y/d' .config
-          sed -i '/CONFIG_IPC_NS=y/d' .config
-          sed -i '/CONFIG_PID_NS=y/d' .config
-          sed -i '/CONFIG_NET_NS=y/d' .config
-          sed -i '/CONFIG_BPF_SYSCALL=y/d' .config
-          sed -i '/CONFIG_SECCOMP=y/d' .config
-          sed -i '/CONFIG_APPARMOR=y/d' .config
-          sed -i '/CONFIG_SECURITY_APPARMOR=y/d' .config
-          sed -i '/CONFIG_SECURITY_SELINUX=y/d' .config
-          sed -i '/CONFIG_OVERLAY_FS=y/d' .config
-          sed -i '/CONFIG_DEVTMPFS=y/d' .config
-          sed -i '/CONFIG_DEVTMPFS_MOUNT=y/d' .config
-          echo 'CONFIG_LXC=y' >> .config
-          echo 'CONFIG_CGROUP_PIDS=y' >> .config
-          echo 'CONFIG_USER_NS=y' >> .config
-          echo 'CONFIG_IPC_NS=y' >> .config
-          echo 'CONFIG_PID_NS=y' >> .config
-          echo 'CONFIG_NET_NS=y' >> .config
-          echo 'CONFIG_BPF_SYSCALL=y' >> .config
-          echo 'CONFIG_SECCOMP=y' >> .config
-          echo 'CONFIG_APPARMOR=y' >> .config
-          echo 'CONFIG_SECURITY_APPARMOR=y' >> .config
-          echo 'CONFIG_SECURITY_SELINUX=y' >> .config
-          echo 'CONFIG_OVERLAY_FS=y' >> .config
-          echo 'CONFIG_DEVTMPFS=y' >> .config
-          echo 'CONFIG_DEVTMPFS_MOUNT=y' >> .config
+
+          # Define a list of necessary kernel configurations for LXC/Docker support
+          CONFIGS=(
+            "CONFIG_LXC=y"
+            "CONFIG_CGROUP_PIDS=y"
+            "CONFIG_USER_NS=y"
+            "CONFIG_IPC_NS=y"
+            "CONFIG_PID_NS=y"
+            "CONFIG_NET_NS=y"
+            "CONFIG_BPF_SYSCALL=y"
+            "CONFIG_SECCOMP=y"
+            "CONFIG_APPARMOR=y"
+            "CONFIG_SECURITY_APPARMOR=y"
+            "CONFIG_SECURITY_SELINUX=y"
+            "CONFIG_OVERLAY_FS=y"
+            "CONFIG_DEVTMPFS=y"
+            "CONFIG_DEVTMPFS_MOUNT=y"
+          )
+
+          # Update or add each configuration in the .config file if not already present
+          for config in "${CONFIGS[@]}"; do
+            key=${config%=*}
+            if ! grep -q "^$key=" .config; then
+              echo "$config" >> .config
+              echo "[+] Added $config to .config"
+            else
+              echo "[+] $config is already set in .config"
+            fi
+          done
+
+          # Ensure all new options are set and existing ones aren't changed
           make olddefconfig
 
+          echo "[+] LXC/Docker setup completed."
+      
       - name: Symbol magic
         run: |
           echo "[+] Export all symbol from abi_gki_aarch64.xml"
