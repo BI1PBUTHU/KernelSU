@@ -286,6 +286,7 @@ jobs:
             tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
           fi
 
+
           # Clean up after build
           cd common/
           make clean
