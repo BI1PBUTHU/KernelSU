@@ -147,7 +147,7 @@ jobs:
       
       - name: Setup for LXC/Docker
         if: ${{ inputs.enable_lxc_docker == true }}
-        working-directory: $GITHUB_WORKSPACE/android-kernel/common
+        working-directory: android-kernel/common
         run: |
           echo "[+] Enable LXC/Docker kernel configurations"
 
