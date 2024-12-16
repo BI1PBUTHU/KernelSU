@@ -208,10 +208,10 @@ jobs:
         run: |
           # Setup for LXC/Docker configurations if enabled
           cd common
-          # Ensure .config exists or create a default one
-          if [ ! -f ".config" ]; then
-            make gki_defconfig
-            echo "[+] Generated gki_defconfig"
+          # Ensure gki_defconfig exists
+          if [ ! -f "arch/arm64/configs/gki_defconfig" ]; then
+            echo "[-] gki_defconfig not found!"
+            exit 1
           fi
 
           # Define the path to the config fragment
@@ -225,30 +225,19 @@ jobs:
               exit 1
             fi
 
-            echo "[+] Setting LXC/Docker configurations using scripts/config"
-            # 使用 scripts/config 工具逐个设置配置项，确保依赖关系被正确处理
-            while read -r line; do
-              # 忽略空行和注释
-              [[ -z "$line" || "$line" =~ ^# ]] && continue
-              key=$(echo "$line" | cut -d '=' -f1)
-              value=$(echo "$line" | cut -d '=' -f2)
-              if [ "$value" = "y" ]; then
-                ./scripts/config --enable "$key"
-              elif [ "$value" = "m" ]; then
-                ./scripts/config --module "$key"
-              elif [ "$value" = "n" ]; then
-                ./scripts/config --disable "$key"
-              fi
-            done < "$CONFIG_FRAGMENT"
+            echo "[+] Merging LXC/Docker configurations into gki_defconfig"
+            # Use merge_config.sh to merge the config fragment into gki_defconfig
+            scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig $CONFIG_FRAGMENT
 
-            # 重新生成依赖关系
-            make olddefconfig
+            # Verify the merge was successful
+            if [ $? -ne 0 ]; then
+              echo "[-] Failed to merge configurations"
+              exit 1
+            fi
 
-            # Debug: 显示合并配置后的 .config 文件的
-           echo "[+] LXC/Docker related configurations in .config:"
-           grep -f "$CONFIG_FRAGMENT" .config || echo "[-] Failed to grep configurations"
+            echo "[+] Merged configurations successfully"
 
-            # Debug: 验证必要的配置项是否被正确设置为 y
+            # Optional: Validate essential configurations
             REQUIRED_CONFIGS=(
               CONFIG_CGROUPS
               CONFIG_NAMESPACES 
@@ -270,7 +259,6 @@ jobs:
               CONFIG_NET
               CONFIG_NETFILTER
               CONFIG_NETFILTER_ADVANCED
-              # CONFIG_BRIDGE_NETFILTER
               CONFIG_BRIDGE_VLAN_FILTERING
               CONFIG_IP_NF_FILTER
               CONFIG_IP_NF_MANGLE
@@ -310,56 +298,19 @@ jobs:
               CONFIG_BTRFS_FS
               CONFIG_BTRFS_FS_POSIX_ACL
               CONFIG_IPV6
-              # CONFIG_HUGETLB_PAGE
-              # CONFIG_CGROUP_HUGETLB 
             )
 
-            # 验证所有必需的配置项是否已正确设置
+            echo "[+] Validating essential configurations in gki_defconfig"
             for config in "${REQUIRED_CONFIGS[@]}"; do
-              if grep -q "^${config}=[ym]" .config; then
+              if grep -q "^${config}=y" arch/arm64/configs/gki_defconfig || grep -q "^${config}=m" arch/arm64/configs/gki_defconfig; then
                 echo "[+] ${config} is set correctly"
               else
                 echo "[-] ${config} is not set correctly"
+                # Optionally, you can choose to fail the build here
+                # exit 1
               fi
             done
           fi
-
-          # 保存修改后的 .config 为 defconfig
-          make savedefconfig
-          # rm -rf .config
-          rm -rf include/config
-          rm -rf arch/arm64/include/generated
-          if [ -f "defconfig" ]; then
-            echo "[+] Generated defconfig successfully"
-          else
-            echo "[!] Failed to generate defconfig"
-            exit 1
-          fi
-          echo "[+] Saved modified .config as defconfig"
-
-          # 将 defconfig 移动到 gki_defconfig 以避免不匹配
-          mv defconfig arch/arm64/configs/gki_defconfig
-
-          # make mrproper
-          # sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
-
-          cd ..
-
-          # 继续构建 gki_defconfig
-          if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
-            export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
-            export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
-          fi
-          if [ -e build/build.sh ]; then
-            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" SKIP_DEFCONFIG=1 SKIP_MRPROPER=1
-          else
-            tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
-          fi
-
-          # 构建后清理
-          cd common/
-          make clean
-          cd ..
 
 
       - name: Prepare artifacts
