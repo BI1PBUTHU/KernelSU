@@ -1,4 +1,4 @@
-name: GKI Kernel Build with LXC and Kali NetHunter
+name: GKI Kernel Build with LXC/Docker Support
 
 on:
   workflow_call:
@@ -6,223 +6,156 @@ on:
       version:
         required: true
         type: string
+        description: >
+          Output directory of gki,
+          for example: android12-5.10
       version_name:
         required: true
         type: string
+        description: >
+          With SUBLEVEL of kernel,
+          for example: android12-5.10.66
       tag:
         required: true
         type: string
-      patch_path:
-        required: true
-        type: string
+        description: >
+          Part of branch name of common kernel manifest,
+          for example: android12-5.10-2021-11
       os_patch_level:
-        required: true
+        required: false
         type: string
-      arch:
-        required: true
+        description: >
+          Patch level of common kernel manifest,
+          for example: 2021-11
+        default: 2022-05
+      patch_path:
+        required: false
         type: string
-      kernel_config:
-        required: true
+        description: >
+          Directory name of .github/patches/<patch_path>
+          for example: 5.10
+      use_cache:
+        required: false
+        type: boolean
+        default: true
+      embed_ksud:
+        required: false
         type: string
-      add_kprobes_config:
-        required: true
+        default: ksud-aarch64-linux-android
+        description: >
+          Artifact name of prebuilt ksud to be embedded
+          for example: ksud-aarch64-linux-android
+      debug:
+        required: false
         type: boolean
-      add_overlayfs_config:
-        required: true
+        default: false
+      build_lkm:
+        required: false
         type: boolean
-      disable_lto:
-        required: true
+        default: false
+      enable_lxc_docker:
+        required: false
         type: boolean
-      disable_cc_werror:
-        required: true
-        type: boolean
-      disable_fst:
-        required: true
-        type: boolean
-      enable_lxc:
-        required: true
-        type: boolean
-      enable_nethunter:
-        required: true
-        type: boolean
+        default: false
+    secrets:
+      BOOT_SIGN_KEY:
+        required: false
+      CHAT_ID:
+        required: false
+      BOT_TOKEN:
+        required: false
+      MESSAGE_THREAD_ID:
+        required: false
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    name: Build ${{ inputs.version_name }} with LXC/Docker Support
+    runs-on: ubuntu-latest
     env:
-      VERSION: ${{ inputs.version }}
-      VERSION_NAME: ${{ inputs.version_name }}
-      TAG: ${{ inputs.tag }}
-      PATCH_PATH: ${{ inputs.patch_path }}
-      OS_PATCH_LEVEL: ${{ inputs.os_patch_level }}
-      ARCH: ${{ inputs.arch }}
-      KERNEL_CONFIG: ${{ inputs.kernel_config }}
-      ADD_KPROBES_CONFIG: ${{ inputs.add_kprobes_config }}
-      ADD_OVERLAYFS_CONFIG: ${{ inputs.add_overlayfs_config }}
-      DISABLE_LTO: ${{ inputs.disable_lto }}
-      DISABLE_CC_WERROR: ${{ inputs.disable_cc_werror }}
-      DISABLE_FST: ${{ inputs.disable_fst }}
-      ENABLE_LXC: ${{ inputs.enable_lxc }}
-      ENABLE_NETHUNTER: ${{ inputs.enable_nethunter }}
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up environment variables
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "VERSION=$VERSION"
-          echo "VERSION_NAME=$VERSION_NAME"
-          echo "TAG=$TAG"
-          echo "PATCH_PATH=$PATCH_PATH"
-          echo "OS_PATCH_LEVEL=$OS_PATCH_LEVEL"
-          echo "ARCH=$ARCH"
-          echo "KERNEL_CONFIG=$KERNEL_CONFIG"
-          echo "ADD_KPROBES_CONFIG=$ADD_KPROBES_CONFIG"
-          echo "ADD_OVERLAYFS_CONFIG=$ADD_OVERLAYFS_CONFIG"
-          echo "DISABLE_LTO=$DISABLE_LTO"
-          echo "DISABLE_CC_WERROR=$DISABLE_CC_WERROR"
-          echo "DISABLE_FST=$DISABLE_FST"
-          echo "ENABLE_LXC=$ENABLE_LXC"
-          echo "ENABLE_NETHUNTER=$ENABLE_NETHUNTER"
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git wget unzip bzip2 cpio rsync make bc flex libssl-dev zlib1g-dev gcc g++ binutils clang llvm libc6-dev libncurses5-dev xz-utils libelf-dev liblzma-dev libudev-dev device-tree-compiler u-boot-tools python3-distutils uuid-dev dwarves kmod ccache
-
-      - name: Clone KernelSU
-        run: |
-          git clone https://github.com/tomxi1997/KernelSU.git
-          cd KernelSU
-          git checkout v1.5.0
-
-      - name: Initialize and sync Android kernel source
-        run: |
-          mkdir -p $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          repo init -u https://android.googlesource.com/kernel/manifest -b common-android12-5.10
-          repo sync -j$(nproc)
-
-      - name: Setup KernelSU drivers and patches
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          cp -r $GITHUB_WORKSPACE/KernelSU/drivers .
-          cp -r $GITHUB_WORKSPACE/KernelSU/fs/fuse/kernelspace fuse/
-          cp -r $GITHUB_WORKSPACE/KernelSU/net/netfilter xt_qtaguid.c net/netfilter/
-
-      - name: Handle symbol exports
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          scripts/export-symbol-version.sh
-
-      - name: Setup cache
-        if: ${{ env.CACHE_ENABLED }}
-        run: |
-          export CC=gcc
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export KBUILD_BUILD_USER=GitHubActions
-          export KBUILD_BUILD_HOST=github.com
-          export LLVM=1
-          export USE_CCACHE=1
-          export CCACHE_DIR=/tmp/ccache
-          export CCACHE_EXEC=$(which ccache)
-          ccache --zero-stats
-
-      - name: Build LKM (Loadable Kernel Modules)
-        if: ${{ env.BUILD_LKM }}
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          make -j$(nproc) M=drivers/ksu modules
-
-      - name: Clean workspace
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          make clean
-
-      - name: Build kernel using traditional script
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          make O=out ARCH=$ARCH SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KCFLAGS=-mno-outline-atomics V=1 -j$(nproc) $KERNEL_CONFIG
-          make O=out ARCH=$ARCH SUBARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KCFLAGS=-mno-outline-atomics V=1 -j$(nproc) Image.gz
-
-      - name: Setup Configuration for Kernel
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          if [ "$ADD_KPROBES_CONFIG" = true ]; then
-              echo "CONFIG_MODULES=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-              echo "CONFIG_KPROBES=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-              echo "CONFIG_HAVE_KPROBES=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-              echo "CONFIG_KPROBE_EVENTS=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-          fi
-          if [ "$ADD_OVERLAYFS_CONFIG" = true ]; then
-              echo "CONFIG_OVERLAY_FS=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-          fi
-          if [ "$DISABLE_LTO" = true ]; then
-              sed -i 's/CONFIG_LTO=y/CONFIG_LTO=n/' arch/$ARCH/configs/$KERNEL_CONFIG
-              sed -i 's/CONFIG_LTO_CLANG=y/CONFIG_LTO_CLANG=n/' arch/$ARCH/configs/$KERNEL_CONFIG
-              sed -i 's/CONFIG_THINLTO=y/CONFIG_THINLTO=n/' arch/$ARCH/configs/$KERNEL_CONFIG
-              echo "CONFIG_LTO_NONE=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-          fi
-          if [ "$DISABLE_CC_WERROR" = true ]; then
-              echo "CONFIG_CC_WERROR=n" >> arch/$ARCH/configs/$KERNEL_CONFIG
-          fi
-          if [ "$DISABLE_FST" = true ]; then
-              sed -i "s/CONFIG_CC_STACKPROTECTOR_STRONG=y/# CONFIG_CC_STACKPROTECTOR_STRONG is not set/g" arch/$ARCH/configs/$KERNEL_CONFIG
-          fi
-
-      - name: Setup LXC
-        if: env.ENABLE_LXC == 'true'
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          rm -rf utils
-          git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
-          echo 'source "utils/Kconfig"' >> "Kconfig"
-
-          echo "CONFIG_DOCKER=y" >> arch/$ARCH/configs/$KERNEL_CONFIG
-
-          sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' arch/$ARCH/configs/$KERNEL_CONFIG
-          echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> arch/$ARCH/configs/$KERNEL_CONFIG
-
-          chmod +x $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/runcpatch.sh
-          if [ -f $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/cgroup/cgroup.c ]; then
-              sh $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/runcpatch.sh $GITHUB_WORKSPACE/kernel_workspace/android-kernel/kernel/cgroup/cgroup.c
-          fi
-
-          if [ -f $GITHUB_WORKSPACE/kernel_workspace/android-kernel/net/netfilter/xt_qtaguid.c ]; then
-              patch -p0 < $GITHUB_WORKSPACE/kernel_workspace/android-kernel/utils/xt_qtaguid.patch
-          fi
-
-      - name: Setup Kali-Nethunter
-        if: env.ENABLE_NETHUNTER == 'true'
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          git clone https://github.com/tomxi1997/kali-nethunter_patches.git
-          patch -p1 < kali-nethunter_patches/add-rtl88xxau-5.6.4.2-drivers.patch
-          patch -p1 < kali-nethunter_patches/add-wifi-injection-4.14.patch
-          #patch -p1 < kali-nethunter_patches/add-wifi-injection.patch
-          patch -p1 < kali-nethunter_patches/fix-ath9k-naming-conflict.patch
-          sleep 8
-          git clone https://github.com/Biohazardousrom/Kali-defconfig-checker.git kali
-          cd kali
-          chmod +x *.sh
-          chmod +x check-kernel-config
-          ./check-kernel-config $GITHUB_WORKSPACE/kernel_workspace/android-kernel/arch/$ARCH/configs/$KERNEL_CONFIG -w
-
-      - name: Build final kernel image
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel/out
-          make -j$(nproc) Image.gz
-
-      - name: Run post-build script
-        run: |
-          cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-          bash $GITHUB_WORKSPACE/build-a12-lxc.sh
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
         with:
-          name: kernel-images
-          path: |
-            $GITHUB_WORKSPACE/kernel_workspace/android-kernel/*.gz
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - uses: actions/checkout@v4
+        with:
+          path: KernelSU
+          fetch-depth: 0
+
+      - name: Setup need_upload
+        id: need_upload
+        run: |
+          if [ ! -z "${{ secrets.BOT_TOKEN }}" ]; then
+            echo "UPLOAD=true" >> $GITHUB_OUTPUT
+          else
+            echo "UPLOAD=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup kernel source
+        run: |
+          echo "Free space:"
+          df -h
+          cd $GITHUB_WORKSPACE
+          sudo apt-get install repo -y
+          mkdir android-kernel && cd android-kernel
+          repo init --depth=1 --u https://android.googlesource.com/kernel/manifest -b common-${{ inputs.tag }} --repo-rev=v2.16
+          REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common ${{ inputs.tag }})
+          DEFAULT_MANIFEST_PATH=.repo/manifests/default.xml
+          if grep -q deprecated <<< $REMOTE_BRANCH; then
+            echo "Found deprecated branch: ${{ inputs.tag }}"
+            sed -i 's/"${{ inputs.tag }}"/"deprecated\/${{ inputs.tag }}"/g' $DEFAULT_MANIFEST_PATH
+            cat $DEFAULT_MANIFEST_PATH
+          fi
+          repo --version
+          repo --trace sync -c -j$(nproc --all) --no-tags
+          df -h
+
+      - name: Setup KernelSU
+        env:
+          PATCH_PATH: ${{ inputs.patch_path }}
+          IS_DEBUG_KERNEL: ${{ inputs.debug }}
+        run: |
+          cd $GITHUB_WORKSPACE/android-kernel
+          echo "[+] KernelSU setup"
+          GKI_ROOT=$(pwd)
+          echo "[+] GKI_ROOT: $GKI_ROOT"
+          echo "[+] Copy KernelSU driver to $GKI_ROOT/common/drivers"
+          ln -sf $GITHUB_WORKSPACE/KernelSU/kernel $GKI_ROOT/common/drivers/kernelsu
+          echo "[+] Add KernelSU driver to Makefile"
+          DRIVER_MAKEFILE=$GKI_ROOT/common/drivers/Makefile
+          DRIVER_KCONFIG=$GKI_ROOT/common/drivers/Kconfig
+          grep -q "kernelsu" "$DRIVER_MAKEFILE" || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> "$DRIVER_MAKEFILE"
+          grep -q "kernelsu" "$DRIVER_KCONFIG" || sed -i "/endmenu/i\\source \"drivers/kernelsu/Kconfig\"" "$DRIVER_KCONFIG"
+          echo "[+] Apply KernelSU patches"
+          cd $GKI_ROOT/common/ && git apply $GITHUB_WORKSPACE/KernelSU/.github/patches/$PATCH_PATH/*.patch || echo "[-] No patch found"
+          if [ "$IS_DEBUG_KERNEL" = "true" ]; then
+            echo "[+] Enable debug features for kernel"
+            printf "\nccflags-y += -DCONFIG_KSU_DEBUG\n" >> $GITHUB_WORKSPACE/KernelSU/kernel/Makefile
+          fi
+          repo status
+          echo "[+] KernelSU setup done."
+
+      - name: Setup for LXC/Docker
+        if: ${{ inputs.enable_lxc_docker == true }}
+        run: |
+          cd $GITHUB_WORKSPACE/android-kernel/common
+          echo "[+] Applying LXC/Docker patches"
+          git apply $GITHUB_WORKSPACE/KernelSU/.github/patches/lxc-docker/*.patch || echo "[-] No LXC/Docker patches found"
+          
+          echo "[+] Enable LXC/Docker kernel configurations"
+          sed -i '/CONFIG_LXC/a CONFIG_LXC_NET=y' .config
+          sed -i '/CONFIG_CGROUPS/a CONFIG_CGROUP_PIDS=y' .config
+          sed -i '/CONFIG_NAMESPACES/a CONFIG_USER_NS=y' .config
+          sed -i '/CONFIG_IPC_NS/a CONFIG_IPC_NS=y' .config
+          sed -i '/CONFIG_PID_NS/a CONFIG_PID_NS=y' .config
+          sed -i '/CONFIG 
