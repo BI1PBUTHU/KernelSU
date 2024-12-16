@@ -13,11 +13,24 @@ on:
         required: true
         type: string
       os_patch_level:
-        required: true
+        required: false
         type: string
+        default: 2022-05
       patch_path:
-        required: true
+        required: false
         type: string
+      use_cache:
+        required: false
+        type: boolean
+        default: true
+      embed_ksud:
+        required: false
+        type: string
+        default: ksud-aarch64-linux-android
+      debug:
+        required: false
+        type: boolean
+        default: false
       enable_lxc_docker:
         required: false
         type: boolean
@@ -34,14 +47,14 @@ jobs:
       - name: Set up environment
         run: |
           sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make gcc git zip wget python3 curl unzip kmod cpio xz-utils libncurses5-dev libelf-dev libudev-dev libpci-dev libiberty-dev device-tree-compiler pahole dwarves
-          
+
       - name: Setup for LXC/Docker
         if: ${{ inputs.enable_lxc_docker == true }}
         run: |
           cd $GITHUB_WORKSPACE/android-kernel/common
           echo "[+] Applying LXC/Docker patches"
           git apply $GITHUB_WORKSPACE/patches/lxc-docker/*.patch || echo "[-] No LXC/Docker patches found"
-          
+
           echo "[+] Enable LXC/Docker kernel configurations"
           # Ensure necessary kernel configurations are enabled
           sed -i '/CONFIG_LXC=y/d' .config
