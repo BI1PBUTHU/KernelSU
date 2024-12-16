@@ -72,7 +72,6 @@ jobs:
       - name: Set up environment variables
         run: |
           echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "KERNELSU_TOKEN=${{ secrets.KERNELSU_TOKEN }}"
           echo "VERSION=$VERSION"
           echo "VERSION_NAME=$VERSION_NAME"
           echo "TAG=$TAG"
