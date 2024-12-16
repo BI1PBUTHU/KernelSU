@@ -254,6 +254,13 @@ jobs:
                 echo "[+] 添加了 ${key} 到 ${defconfig_file} 中"
               fi
             done < "$config_fragment"
+            # 检查是否有重复配置项
+            duplicates=$(grep '^CONFIG_' "$defconfig_file" | awk -F '=' '{print $1}' | sort | uniq -d)
+            if [ ! -z "$duplicates" ]; then
+              echo "[-] 以下配置项在 ${defconfig_file} 中重复定义：" >&2
+              echo "$duplicates" >&2
+              exit 1
+            fi
           }
 
           # 遍历每个架构并合并配置
