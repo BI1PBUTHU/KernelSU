@@ -1,4 +1,3 @@
-[<title="build-a12-lxc.sh">]
 #!/bin/bash
 set -euo pipefail
 
