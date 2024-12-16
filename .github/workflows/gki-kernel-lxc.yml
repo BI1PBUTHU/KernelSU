@@ -248,33 +248,20 @@ jobs:
             make olddefconfig
 
             # Backup the original gki_defconfig if it exists
-            if [ -f "arch/arm64/configs/gki_defconfig" ]; then
-              mv arch/arm64/configs/gki_defconfig arch/arm64/configs/gki_defconfig.bak
+            if [ -f "../arch/arm64/configs/gki_defconfig" ]; then
+              mv ../arch/arm64/configs/gki_defconfig ../arch/arm64/configs/gki_defconfig.bak
               echo "[+] Backed up original gki_defconfig as gki_defconfig.bak"
             fi
 
             # Save the modified .config as gki_defconfig in the correct directory
-            cp .config arch/arm64/configs/gki_defconfig
+            cp .config ../arch/arm64/configs/gki_defconfig
             echo "[+] Saved modified .config as gki_defconfig"
 
+            make mrproper
+            
             cd ..
           fi
 
-          # Clean the source tree thoroughly
-          cd common/
-          make mrproper
-          cd ..
-
-          # Optionally, use git clean for more thorough cleanup while preserving .config
-          # git clean -xdf -e .config
-          cd ..
-
-          # Restore the saved .config file if it was saved earlier
-          if [ -f "common/.config.saved" ]; then
-            cp common/.config.saved common/.config
-            rm common/.config.saved
-            echo "[+] Restored .config after cleaning."
-          fi
 
           if [ ! -z ${{ vars.EXPECTED_SIZE }} ] && [ ! -z ${{ vars.EXPECTED_HASH }} ]; then
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
