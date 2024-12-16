@@ -246,7 +246,7 @@ jobs:
 
             # Ensure all new options are set and existing ones aren't changed
             make olddefconfig
-
+            echo "[+] Current directory: $(pwd)"
             # Backup the original gki_defconfig if it exists
             if [ -f "../arch/arm64/configs/gki_defconfig" ]; then
               mv ../arch/arm64/configs/gki_defconfig ../arch/arm64/configs/gki_defconfig.bak
