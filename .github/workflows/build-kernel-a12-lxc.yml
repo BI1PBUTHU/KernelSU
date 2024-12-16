@@ -21,8 +21,6 @@ jobs:
           - '2023-06'
           - '2023-07'
     uses: ./.github/workflows/gki-kernel-lxc.yml
-    secrets:
-      KERNELSU_TOKEN: ${{ secrets.KERNELSU_TOKEN }}
     with:
       version: aosp-mainline
       version_name: aosp-mainline
