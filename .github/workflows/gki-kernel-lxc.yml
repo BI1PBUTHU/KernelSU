@@ -306,7 +306,6 @@ jobs:
               CONFIG_NF_CONNTRACK_TFTP
               CONFIG_BTRFS_FS
               CONFIG_BTRFS_FS_POSIX_ACL
-              CONFIG_ZFS
               CONFIG_HUGETLB_PAGE
               CONFIG_CGROUP_HUGETLB
             )
