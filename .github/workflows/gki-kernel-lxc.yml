@@ -102,11 +102,11 @@ jobs:
 
       - name: Setup kernel source
         run: |
-          echo "Free space:"
+          echo "Free space before setup:"
           df -h
           cd $GITHUB_WORKSPACE
           sudo apt-get update
-          sudo apt-get install repo -y
+          sudo apt-get install -y repo
           mkdir android-kernel && cd android-kernel
           repo init --depth=1 --u https://android.googlesource.com/kernel/manifest -b common-${{ inputs.tag }} --repo-rev=v2.16
           REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common ${{ inputs.tag }})
@@ -118,6 +118,7 @@ jobs:
           fi
           repo --version
           repo --trace sync -c -j$(nproc --all) --no-tags
+          echo "Free space after setup:"
           df -h
 
       - name: Setup KernelSU
@@ -148,7 +149,7 @@ jobs:
 
       - name: Symbol magic
         run: |
-          echo "[+] Export all symbol from abi_gki_aarch64.xml"
+          echo "[+] Export all symbols from abi_gki_aarch64.xml"
           COMMON_ROOT=$GITHUB_WORKSPACE/android-kernel/common
           KSU_ROOT=$GITHUB_WORKSPACE/KernelSU
           ABI_XML=$COMMON_ROOT/android/abi_gki_aarch64.xml
@@ -170,7 +171,7 @@ jobs:
         working-directory: android-kernel
         run: |
           pip install ast-grep-cli
-          sudo apt-get install llvm-15 -y
+          sudo apt-get install -y llvm-15
           ast-grep -U -p '$$$ check_exports($$$) {$$$}' -r '' common/scripts/mod/modpost.c
           ast-grep -U -p 'check_exports($$$);' -r '' common/scripts/mod/modpost.c
           sed -i '/config KSU/,/help/{s/default y/default m/}' common/drivers/kernelsu/Kconfig
@@ -212,59 +213,46 @@ jobs:
             make gki_defconfig
           fi
 
-          # Define a list of necessary kernel configurations for LXC/Docker support
-          CONFIGS=(
-            "CONFIG_LXC=y"
-            "CONFIG_CGROUP_PIDS=y"
-            "CONFIG_USER_NS=y"
-            "CONFIG_IPC_NS=y"
-            "CONFIG_PID_NS=y"
-            "CONFIG_NET_NS=y"
-            "CONFIG_BPF_SYSCALL=y"
-            "CONFIG_SECCOMP=y"
-            "CONFIG_APPARMOR=y"
-            "CONFIG_SECURITY_APPARMOR=y"
-            "CONFIG_SECURITY_SELINUX=y"
-            "CONFIG_OVERLAY_FS=y"
-            "CONFIG_DEVTMPFS=y"
-            "CONFIG_DEVTMPFS_MOUNT=y"
-          )
+          # Define the path to the config fragment
+          CONFIG_FRAGMENT=$GITHUB_WORKSPACE/KernelSU/.github/configs/lxc_docker.config
 
-          # Update or add each configuration in the .config file if not already present
-          for config in "${CONFIGS[@]}"; do
-            key=${config%=*}
-            if ! grep -q "^$key=" .config; then
-              echo "$config" >> .config
-              echo "[+] Added $config to .config"
-            else
-              echo "[+] $config is already set in .config"
-            fi
-          done
+          # Check if LXC/Docker support is enabled
+          if [ "${{ inputs.enable_lxc_docker }}" = "true" ]; then
+            # Append the configuration fragment to .config
+            cat "$CONFIG_FRAGMENT" >> .config
+            echo "[+] Added LXC/Docker configurations from $CONFIG_FRAGMENT to .config"
+          fi
 
           # Ensure all new options are set and existing ones aren't changed
           make olddefconfig
 
-          # Backup the original gki_defconfig if it exists
-          if [ -f "arch/arm64/configs/gki_defconfig" ]; then
-            mv arch/arm64/configs/gki_defconfig arch/arm64/configs/gki_defconfig.bak
-            echo "[+] Backed up original gki_defconfig as gki_defconfig.bak"
-          fi
+          # Optional: Verify all configurations are set
+          for config in CONFIG_LXC CONFIG_CGROUP_PIDS CONFIG_USER_NS CONFIG_IPC_NS CONFIG_PID_NS CONFIG_NET_NS CONFIG_BPF_SYSCALL CONFIG_SECCOMP CONFIG_APPARMOR CONFIG_SECURITY_APPARMOR CONFIG_SECURITY_SELINUX CONFIG_OVERLAY_FS CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT; do
+            grep -q "^${config}=y" .config || {
+              echo "ERROR: ${config} not set correctly in .config"
+              exit 1
+            }
+          done
+          echo "[+] All LXC/Docker configurations are correctly set in .config"
 
-          # Save the modified .config as gki_defconfig in the correct directory
+          # Save the modified .config as defconfig
           make savedefconfig
           if [ -f "defconfig" ]; then
-            mv defconfig arch/arm64/configs/gki_defconfig
-            echo "[+] Updated gki_defconfig with savedefconfig"
+            echo "[+] Generated defconfig successfully"
           else
             echo "[!] Failed to generate defconfig"
             exit 1
           fi
-          echo "[+] Saved modified .config as gki_defconfig"
+          echo "[+] Saved modified .config as defconfig"
+
+          # Do not move defconfig to gki_defconfig to avoid mismatch
+          # mv defconfig arch/arm64/configs/gki_defconfig
 
           make mrproper
 
           cd ..
 
+          # Proceed with build without modifying gki_defconfig
           if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
             export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
@@ -280,6 +268,17 @@ jobs:
           make clean
           cd ..
 
+      - name: Verify LXC/Docker configurations
+        run: |
+          cd android-kernel/common
+          for config in CONFIG_LXC CONFIG_CGROUP_PIDS CONFIG_USER_NS CONFIG_IPC_NS CONFIG_PID_NS CONFIG_NET_NS CONFIG_BPF_SYSCALL CONFIG_SECCOMP CONFIG_APPARMOR CONFIG_SECURITY_APPARMOR CONFIG_SECURITY_SELINUX CONFIG_OVERLAY_FS CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT; do
+            grep "^${config}=y" .config || {
+              echo "ERROR: ${config} is not set correctly in .config"
+              exit 1
+            }
+          done
+          echo "[+] All LXC/Docker configurations are correctly set in .config"
+
       - name: Prepare artifacts
         id: prepareArtifacts
         run: |
@@ -287,7 +286,7 @@ jobs:
           if [ ! -e "$OUTDIR" ]; then
             OUTDIR=android-kernel/dist
           fi
-          mkdir output
+          mkdir -p output
           if [ "${{ inputs.build_lkm }}" = "true" ]; then 
             llvm-strip-15 -d "$OUTDIR/kernelsu.ko"
             mv "$OUTDIR/kernelsu.ko" ./output/${{ inputs.version }}_kernelsu.ko
