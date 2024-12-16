@@ -105,14 +105,15 @@ jobs:
           echo "Free space:"
           df -h
           cd $GITHUB_WORKSPACE
+          sudo apt-get update
           sudo apt-get install repo -y
           mkdir android-kernel && cd android-kernel
           repo init --depth=1 --u https://android.googlesource.com/kernel/manifest -b common-${{ inputs.tag }} --repo-rev=v2.16
           REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common ${{ inputs.tag }})
           DEFAULT_MANIFEST_PATH=.repo/manifests/default.xml
-          if grep -q deprecated <<< $REMOTE_BRANCH; then
+          if echo "$REMOTE_BRANCH" | grep -q deprecated; then
             echo "Found deprecated branch: ${{ inputs.tag }}"
-            sed -i 's/"${{ inputs.tag }}"/"deprecated\/${{ inputs.tag }}"/g' $DEFAULT_MANIFEST_PATH
+            sed -i "s/${{ inputs.tag }}/deprecated\/${{ inputs.tag }}/g" $DEFAULT_MANIFEST_PATH
             cat $DEFAULT_MANIFEST_PATH
           fi
           repo --version
@@ -144,8 +145,7 @@ jobs:
           fi
           repo status
           echo "[+] KernelSU setup done."
-      
-      
+
       - name: Symbol magic
         run: |
           echo "[+] Export all symbol from abi_gki_aarch64.xml"
@@ -199,106 +199,104 @@ jobs:
           rm common/android/abi_gki_protected_exports_* || echo "No protected exports!"
           git config --global user.email "bot@kernelsu.org"
           git config --global user.name "KernelSUBot"
-          cd common/ && git add -A && git commit -a -m "Add KernelSU"
+          cd common/ && git add -A && git commit -a -m "Add KernelSU" || echo "No changes to commit"
           repo status
 
       - name: Build Kernel/LKM
         working-directory: android-kernel
         run: |
           # Setup for LXC/Docker configurations if enabled
-            cd common
-            # Ensure .config exists or create a default one
-            if [ ! -f ".config" ]; then
-              make gki_defconfig
-            fi
+          cd common
+          # Ensure .config exists or create a default one
+          if [ ! -f ".config" ]; then
+            make gki_defconfig
+          fi
 
-            # Define a list of necessary kernel configurations for LXC/Docker support
-            CONFIGS=(
-              "CONFIG_LXC=y"
-              "CONFIG_CGROUP_PIDS=y"
-              "CONFIG_USER_NS=y"
-              "CONFIG_IPC_NS=y"
-              "CONFIG_PID_NS=y"
-              "CONFIG_NET_NS=y"
-              "CONFIG_BPF_SYSCALL=y"
-              "CONFIG_SECCOMP=y"
-              "CONFIG_APPARMOR=y"
-              "CONFIG_SECURITY_APPARMOR=y"
-              "CONFIG_SECURITY_SELINUX=y"
-              "CONFIG_OVERLAY_FS=y"
-              "CONFIG_DEVTMPFS=y"
-              "CONFIG_DEVTMPFS_MOUNT=y"
-            )
+          # Define a list of necessary kernel configurations for LXC/Docker support
+          CONFIGS=(
+            "CONFIG_LXC=y"
+            "CONFIG_CGROUP_PIDS=y"
+            "CONFIG_USER_NS=y"
+            "CONFIG_IPC_NS=y"
+            "CONFIG_PID_NS=y"
+            "CONFIG_NET_NS=y"
+            "CONFIG_BPF_SYSCALL=y"
+            "CONFIG_SECCOMP=y"
+            "CONFIG_APPARMOR=y"
+            "CONFIG_SECURITY_APPARMOR=y"
+            "CONFIG_SECURITY_SELINUX=y"
+            "CONFIG_OVERLAY_FS=y"
+            "CONFIG_DEVTMPFS=y"
+            "CONFIG_DEVTMPFS_MOUNT=y"
+          )
 
-            # Update or add each configuration in the .config file if not already present
-            for config in "${CONFIGS[@]}"; do
-              key=${config%=*}
-              if ! grep -q "^$key=" .config; then
-                echo "$config" >> .config
-                echo "[+] Added $config to .config"
-              else
-                echo "[+] $config is already set in .config"
-              fi
-            done
-
-            # Ensure all new options are set and existing ones aren't changed
-            make olddefconfig
-            
-            # Backup the original gki_defconfig if it exists
-            if [ -f "arch/arm64/configs/gki_defconfig" ]; then
-              mv arch/arm64/configs/gki_defconfig arch/arm64/configs/gki_defconfig.bak
-              echo "[+] Backed up original gki_defconfig as gki_defconfig.bak"
-            fi
-
-            # Save the modified .config as gki_defconfig in the correct directory
-            make savedefconfig
-            if [ -f "defconfig" ]; then
-              mv defconfig arch/arm64/configs/gki_defconfig
-              echo "[+] Updated gki_defconfig with savedefconfig"
+          # Update or add each configuration in the .config file if not already present
+          for config in "${CONFIGS[@]}"; do
+            key=${config%=*}
+            if ! grep -q "^$key=" .config; then
+              echo "$config" >> .config
+              echo "[+] Added $config to .config"
             else
-              echo "[!] Failed to generate defconfig"
-              exit 1
+              echo "[+] $config is already set in .config"
             fi
-            echo "[+] Saved modified .config as gki_defconfig"
+          done
 
-            make mrproper
-            
-            cd ..
+          # Ensure all new options are set and existing ones aren't changed
+          make olddefconfig
 
+          # Backup the original gki_defconfig if it exists
+          if [ -f "arch/arm64/configs/gki_defconfig" ]; then
+            mv arch/arm64/configs/gki_defconfig arch/arm64/configs/gki_defconfig.bak
+            echo "[+] Backed up original gki_defconfig as gki_defconfig.bak"
+          fi
 
-            if [ ! -z ${{ vars.EXPECTED_SIZE }} ] && [ ! -z ${{ vars.EXPECTED_HASH }} ]; then
+          # Save the modified .config as gki_defconfig in the correct directory
+          make savedefconfig
+          if [ -f "defconfig" ]; then
+            mv defconfig arch/arm64/configs/gki_defconfig
+            echo "[+] Updated gki_defconfig with savedefconfig"
+          else
+            echo "[!] Failed to generate defconfig"
+            exit 1
+          fi
+          echo "[+] Saved modified .config as gki_defconfig"
+
+          make mrproper
+
+          cd ..
+
+          if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
             export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
-            fi
-            if [ -e build/build.sh ]; then
-              LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang"
-            else
-              tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
-            fi
+          fi
+          if [ -e build/build.sh ]; then
+            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang"
+          else
+            tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
+          fi
 
-
-            # Clean up after build
-            cd common/
-            make clean
-            cd ..
+          # Clean up after build
+          cd common/
+          make clean
+          cd ..
 
       - name: Prepare artifacts
         id: prepareArtifacts
         run: |
           OUTDIR=android-kernel/out/${{ inputs.version }}/dist
-          if [ ! -e $OUTDIR ]; then
+          if [ ! -e "$OUTDIR" ]; then
             OUTDIR=android-kernel/dist
           fi
           mkdir output
-          if [ "${{ inputs.build_lkm}}" = "true" ]; then 
-            llvm-strip-15 -d $OUTDIR/kernelsu.ko
-            mv $OUTDIR/kernelsu.ko ./output/${{ inputs.version }}_kernelsu.ko
+          if [ "${{ inputs.build_lkm }}" = "true" ]; then 
+            llvm-strip-15 -d "$OUTDIR/kernelsu.ko"
+            mv "$OUTDIR/kernelsu.ko" ./output/${{ inputs.version }}_kernelsu.ko
           else
-            cp $OUTDIR/Image ./output/
-            cp $OUTDIR/Image.lz4 ./output/
+            cp "$OUTDIR/Image" ./output/
+            cp "$OUTDIR/Image.lz4" ./output/
             git clone https://github.com/Kernel-SU/AnyKernel3
             rm -rf ./AnyKernel3/.git
-            cp $OUTDIR/Image ./AnyKernel3/
+            cp "$OUTDIR/Image" ./AnyKernel3/
           fi
 
       - name: Upload Image and Image.gz
