@@ -340,7 +340,7 @@ jobs:
           fi
           echo "[+] Saved modified .config as defconfig"
 
-          将 defconfig 移动到 gki_defconfig 以避免不匹配
+          # 将 defconfig 移动到 gki_defconfig 以避免不匹配
           mv defconfig arch/arm64/configs/gki_defconfig
 
           # make mrproper
