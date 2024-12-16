@@ -253,7 +253,7 @@ jobs:
             # Save the modified .config as gki_defconfig in the correct directory
             make savedefconfig
             if [ -f "defconfig" ]; then
-              mv defconfig arch/arm64/configs/gki_defconfig"
+              mv defconfig arch/arm64/configs/gki_defconfig
               echo "[+] Updated gki_defconfig with savedefconfig"
             else
               echo "[!] Failed to generate defconfig"
