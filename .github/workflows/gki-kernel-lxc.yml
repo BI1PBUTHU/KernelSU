@@ -212,7 +212,7 @@ jobs:
             cd common
             # Ensure .config exists or create a default one
             if [ ! -f ".config" ]; then
-              make gik_defconfig
+              make gki_defconfig
             fi
 
             # Define a list of necessary kernel configurations for LXC/Docker support
