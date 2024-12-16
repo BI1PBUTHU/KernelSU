@@ -254,9 +254,9 @@ jobs:
             exit 1
             fi
 
-            TARGET_DIR="../arch/arm64/configs"
-            echo "[+] Checking existence of target directory: $TARGET_DIR"
-            if [ -d "$TARGET_DIR" ]; then
+  
+            echo "[+] Checking existence of target directory: "../arch/arm64/configs"
+            if [ -d "../arch/arm64/configs" ]; then
               echo "[+] Target directory exists."
             else
               echo "[+] Target directory does not exist. Creating it..."
