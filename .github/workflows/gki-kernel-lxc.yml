@@ -350,6 +350,7 @@ jobs:
                 # exit 1
               fi
             done
+          cp arch/arm64/configs/gki_defconfig arch/x86/configs/gki_defconfig
           make mrproper
           sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
           cd ..
