@@ -1,61 +1,105 @@
-name: Build Kernel A12 with LXC and Kali NetHunter
+name: Build Kernel - Android 12 with LXC/Docker Support
 
 on:
   push:
-    branches:
-      - main
-      - ci
-      - checkci
+    branches: ["main", "ci", "checkci"]
+    paths:
+      - ".github/workflows/build-kernel-a12-lxc.yml"
+      - ".github/workflows/gki-kernel-lxc.yml"
+      - ".github/scripts/build_a12-lxc.sh"
+      - "kernel/**"
   pull_request:
-    branches:
-      - main
+    branches: ["main"]
+    paths:
+      - ".github/workflows/build-kernel-a12-lxc.yml"
+      - ".github/workflows/gki-kernel-lxc.yml"
+      - ".github/scripts/build_a12-lxc.sh"
+      - "kernel/**"
+  workflow_call:
 
 jobs:
   build-kernel:
+    if: github.event_name != 'pull_request' && github.ref != 'refs/heads/checkci'
     strategy:
       matrix:
-        sub_level:
-          - 'aosp-mainline'
-        os_patch_level:
-          - '2023-05'
-          - '2023-06'
-          - '2023-07'
+        include:
+          - sub_level: 198
+            os_patch_level: 2024-01
+          - sub_level: 205
+            os_patch_level: 2024-03
+          - sub_level: 209
+            os_patch_level: 2024-05
+          - sub_level: 218
+            os_patch_level: 2024-08
     uses: ./.github/workflows/gki-kernel-lxc.yml
+    secrets: inherit
     with:
-      version: aosp-mainline
-      version_name: aosp-mainline
-      tag: ${GITHUB_REF_NAME}-${{ matrix.os_patch_level }}-${{ matrix.sub_level }}
-      patch_path: patches/aosp-mainline/${{ matrix.os_patch_level }}
+      version: android12-5.10
+      version_name: android12-5.10.${{ matrix.sub_level }}
+      tag: android12-5.10-${{ matrix.os_patch_level }}
       os_patch_level: ${{ matrix.os_patch_level }}
-      arch: arm64
-      kernel_config: vendor/oneplus/sm8250-perf_defconfig
-      add_kprobes_config: true
-      add_overlayfs_config: true
-      disable_lto: false
-      disable_cc_werror: false
-      disable_fst: false
-      enable_lxc: true
-      enable_nethunter: true
+      patch_path: "5.10"
+      enable_lxc_docker: true
 
   upload-artifacts:
     needs: build-kernel
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    if: ${{ ( github.event_name != 'pull_request' && github.ref == 'refs/heads/main' ) || github.ref_type == 'tag' || github.ref == 'refs/heads/ci' }}
+    env:
+      CHAT_ID: ${{ secrets.CHAT_ID }}
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      MESSAGE_THREAD_ID: ${{ secrets.MESSAGE_THREAD_ID }}
+      COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+      COMMIT_URL: ${{ github.event.head_commit.url }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download artifacts from previous job
+      - name: Download artifacts
         uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: kernel-images
-
-      - name: Upload artifacts to GitHub Releases
-        uses: softprops/action-gh-release@v1
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+          path: KernelSU
+          fetch-depth: 0
+      - name: List artifacts
+        run: |
+          tree
+      - name: Download prebuilt toolchain
+        run: |
+          AOSP_MIRROR=https://android.googlesource.com
+          BRANCH=main-kernel-build-2024
+          git clone $AOSP_MIRROR/platform/prebuilts/build-tools -b $BRANCH --depth 1 build-tools
+          git clone $AOSP_MIRROR/kernel/prebuilts/build-tools -b $BRANCH --depth 1 kernel-build-tools
+          git clone $AOSP_MIRROR/platform/system/tools/mkbootimg -b $BRANCH --depth 1
+          pip3 install telethon
+      - name: Set boot sign key
+        env:
+          BOOT_SIGN_KEY: ${{ secrets.BOOT_SIGN_KEY }}
+        run: |
+          if [ ! -z "$BOOT_SIGN_KEY" ]; then
+            echo "$BOOT_SIGN_KEY" > ./kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
+          fi
+      - name: Bot session cache
+        id: bot_session_cache
+        uses: actions/cache@v4
+        if: false
         with:
-          files: |
-            *.gz
-          body: Release of kernel images for A12 with LXC and Kali NetHunter support.
-          draft: false
-          prerelease: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: scripts/ksubot.session
+          key: ${{ runner.os }}-bot-session
+      - name: Build boot images
+        run: |
+          export AVBTOOL=$GITHUB_WORKSPACE/kernel-build-tools/linux-x86/bin/avbtool
+          export GZIP=$GITHUB_WORKSPACE/build-tools/path/linux-x86/gzip
+          export LZ4=$GITHUB_WORKSPACE/build-tools/path/linux-x86/lz4
+          export MKBOOTIMG=$GITHUB_WORKSPACE/mkbootimg/mkbootimg.py
+          export UNPACK_BOOTIMG=$GITHUB_WORKSPACE/mkbootimg/unpack_bootimg.py
+          cd $GITHUB_WORKSPACE/KernelSU
+          export VERSION=$(($(git rev-list --count HEAD) + 10200))
+          echo "VERSION: $VERSION"
+          cd -
+          bash $GITHUB_WORKSPACE/KernelSU/.github/scripts/build_a12-lxc.sh
+      - name: Display structure of boot files
+        run: ls -R
+      - name: Upload images artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-images-android12-lxc
+          path: Image-android12*/*.img.gz
