@@ -206,9 +206,6 @@ jobs:
         working-directory: android-kernel
         run: |
           # Setup for LXC/Docker configurations if enabled
-          if [ "${{ inputs.enable_lxc_docker }}" = "true" ]; then
-            echo "[+] Enable LXC/Docker kernel configurations"
-
             cd common
             # Ensure .config exists or create a default one
             if [ ! -f ".config" ]; then
