@@ -308,6 +308,12 @@ jobs:
               CONFIG_BTRFS_FS_POSIX_ACL
               CONFIG_HUGETLB_PAGE
               CONFIG_CGROUP_HUGETLB
+              CONFIG_BRIDGE
+              CONFIG_INET
+              CONFIG_NET
+              CONFIG_NETFILTER
+              CONFIG_NETFILTER_ADVANCED
+              CONFIG_IPV6
             )
 
             for config in "${REQUIRED_CONFIGS[@]}"; do
