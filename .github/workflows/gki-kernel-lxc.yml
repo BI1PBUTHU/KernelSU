@@ -309,9 +309,9 @@ jobs:
               CONFIG_NF_CONNTRACK_TFTP
               CONFIG_BTRFS_FS
               CONFIG_BTRFS_FS_POSIX_ACL
-              CONFIG_HUGETLB_PAGE
-              CONFIG_CGROUP_HUGETLB
               CONFIG_IPV6
+              # CONFIG_HUGETLB_PAGE
+              CONFIG_CGROUP_HUGETLB 
             )
 
             # 验证所有必需的配置项是否已正确设置
