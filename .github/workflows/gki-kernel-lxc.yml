@@ -254,6 +254,7 @@ jobs:
               CONFIG_NAMESPACES
               CONFIG_INET
               CONFIG_NET
+              CONFIG_NETFILTER
               CONFIG_NET_NS
               CONFIG_UTS_NS
               CONFIG_OVERLAY_FS
