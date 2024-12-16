@@ -278,6 +278,8 @@ jobs:
           # Optional: Validate essential configurations
           REQUIRED_CONFIGS=(
               CONFIG_CGROUPS
+              CONFIG_PID_NS
+              CONFIG_IPC_NS
               CONFIG_NAMESPACES 
               CONFIG_NET_NS
               CONFIG_UTS_NS
