@@ -6,156 +6,91 @@ on:
       version:
         required: true
         type: string
-        description: >
-          Output directory of gki,
-          for example: android12-5.10
       version_name:
         required: true
         type: string
-        description: >
-          With SUBLEVEL of kernel,
-          for example: android12-5.10.66
       tag:
         required: true
         type: string
-        description: >
-          Part of branch name of common kernel manifest,
-          for example: android12-5.10-2021-11
       os_patch_level:
-        required: false
+        required: true
         type: string
-        description: >
-          Patch level of common kernel manifest,
-          for example: 2021-11
-        default: 2022-05
       patch_path:
-        required: false
+        required: true
         type: string
-        description: >
-          Directory name of .github/patches/<patch_path>
-          for example: 5.10
-      use_cache:
-        required: false
-        type: boolean
-        default: true
-      embed_ksud:
-        required: false
-        type: string
-        default: ksud-aarch64-linux-android
-        description: >
-          Artifact name of prebuilt ksud to be embedded
-          for example: ksud-aarch64-linux-android
-      debug:
-        required: false
-        type: boolean
-        default: false
-      build_lkm:
-        required: false
-        type: boolean
-        default: false
       enable_lxc_docker:
         required: false
         type: boolean
         default: false
-    secrets:
-      BOOT_SIGN_KEY:
-        required: false
-      CHAT_ID:
-        required: false
-      BOT_TOKEN:
-        required: false
-      MESSAGE_THREAD_ID:
-        required: false
 
 jobs:
   build:
     name: Build ${{ inputs.version_name }} with LXC/Docker Support
     runs-on: ubuntu-latest
-    env:
-      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
 
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 8192
-          temp-reserve-mb: 2048
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
+      - uses: actions/checkout@v3
 
-      - uses: actions/checkout@v4
-        with:
-          path: KernelSU
-          fetch-depth: 0
-
-      - name: Setup need_upload
-        id: need_upload
+      - name: Set up environment
         run: |
-          if [ ! -z "${{ secrets.BOT_TOKEN }}" ]; then
-            echo "UPLOAD=true" >> $GITHUB_OUTPUT
-          else
-            echo "UPLOAD=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Setup kernel source
-        run: |
-          echo "Free space:"
-          df -h
-          cd $GITHUB_WORKSPACE
-          sudo apt-get install repo -y
-          mkdir android-kernel && cd android-kernel
-          repo init --depth=1 --u https://android.googlesource.com/kernel/manifest -b common-${{ inputs.tag }} --repo-rev=v2.16
-          REMOTE_BRANCH=$(git ls-remote https://android.googlesource.com/kernel/common ${{ inputs.tag }})
-          DEFAULT_MANIFEST_PATH=.repo/manifests/default.xml
-          if grep -q deprecated <<< $REMOTE_BRANCH; then
-            echo "Found deprecated branch: ${{ inputs.tag }}"
-            sed -i 's/"${{ inputs.tag }}"/"deprecated\/${{ inputs.tag }}"/g' $DEFAULT_MANIFEST_PATH
-            cat $DEFAULT_MANIFEST_PATH
-          fi
-          repo --version
-          repo --trace sync -c -j$(nproc --all) --no-tags
-          df -h
-
-      - name: Setup KernelSU
-        env:
-          PATCH_PATH: ${{ inputs.patch_path }}
-          IS_DEBUG_KERNEL: ${{ inputs.debug }}
-        run: |
-          cd $GITHUB_WORKSPACE/android-kernel
-          echo "[+] KernelSU setup"
-          GKI_ROOT=$(pwd)
-          echo "[+] GKI_ROOT: $GKI_ROOT"
-          echo "[+] Copy KernelSU driver to $GKI_ROOT/common/drivers"
-          ln -sf $GITHUB_WORKSPACE/KernelSU/kernel $GKI_ROOT/common/drivers/kernelsu
-          echo "[+] Add KernelSU driver to Makefile"
-          DRIVER_MAKEFILE=$GKI_ROOT/common/drivers/Makefile
-          DRIVER_KCONFIG=$GKI_ROOT/common/drivers/Kconfig
-          grep -q "kernelsu" "$DRIVER_MAKEFILE" || printf "\nobj-\$(CONFIG_KSU) += kernelsu/\n" >> "$DRIVER_MAKEFILE"
-          grep -q "kernelsu" "$DRIVER_KCONFIG" || sed -i "/endmenu/i\\source \"drivers/kernelsu/Kconfig\"" "$DRIVER_KCONFIG"
-          echo "[+] Apply KernelSU patches"
-          cd $GKI_ROOT/common/ && git apply $GITHUB_WORKSPACE/KernelSU/.github/patches/$PATCH_PATH/*.patch || echo "[-] No patch found"
-          if [ "$IS_DEBUG_KERNEL" = "true" ]; then
-            echo "[+] Enable debug features for kernel"
-            printf "\nccflags-y += -DCONFIG_KSU_DEBUG\n" >> $GITHUB_WORKSPACE/KernelSU/kernel/Makefile
-          fi
-          repo status
-          echo "[+] KernelSU setup done."
-
+          sudo apt-get update && sudo apt-get install -y bc bison flex libssl-dev make gcc git zip wget python3 curl unzip kmod cpio xz-utils libncurses5-dev libelf-dev libudev-dev libpci-dev libiberty-dev device-tree-compiler pahole dwarves
+          
       - name: Setup for LXC/Docker
         if: ${{ inputs.enable_lxc_docker == true }}
         run: |
           cd $GITHUB_WORKSPACE/android-kernel/common
           echo "[+] Applying LXC/Docker patches"
-          git apply $GITHUB_WORKSPACE/KernelSU/.github/patches/lxc-docker/*.patch || echo "[-] No LXC/Docker patches found"
+          git apply $GITHUB_WORKSPACE/patches/lxc-docker/*.patch || echo "[-] No LXC/Docker patches found"
           
           echo "[+] Enable LXC/Docker kernel configurations"
-          sed -i '/CONFIG_LXC/a CONFIG_LXC_NET=y' .config
-          sed -i '/CONFIG_CGROUPS/a CONFIG_CGROUP_PIDS=y' .config
-          sed -i '/CONFIG_NAMESPACES/a CONFIG_USER_NS=y' .config
-          sed -i '/CONFIG_IPC_NS/a CONFIG_IPC_NS=y' .config
-          sed -i '/CONFIG_PID_NS/a CONFIG_PID_NS=y' .config
-          sed -i '/CONFIG 
+          # Ensure necessary kernel configurations are enabled
+          sed -i '/CONFIG_LXC=y/d' .config
+          sed -i '/CONFIG_CGROUP_PIDS=y/d' .config
+          sed -i '/CONFIG_USER_NS=y/d' .config
+          sed -i '/CONFIG_IPC_NS=y/d' .config
+          sed -i '/CONFIG_PID_NS=y/d' .config
+          sed -i '/CONFIG_NET_NS=y/d' .config
+          sed -i '/CONFIG_BPF_SYSCALL=y/d' .config
+          sed -i '/CONFIG_SECCOMP=y/d' .config
+          sed -i '/CONFIG_APPARMOR=y/d' .config
+          sed -i '/CONFIG_SECURITY_APPARMOR=y/d' .config
+          sed -i '/CONFIG_SECURITY_SELINUX=y/d' .config
+          sed -i '/CONFIG_OVERLAY_FS=y/d' .config
+          sed -i '/CONFIG_DEVTMPFS=y/d' .config
+          sed -i '/CONFIG_DEVTMPFS_MOUNT=y/d' .config
+          echo 'CONFIG_LXC=y' >> .config
+          echo 'CONFIG_CGROUP_PIDS=y' >> .config
+          echo 'CONFIG_USER_NS=y' >> .config
+          echo 'CONFIG_IPC_NS=y' >> .config
+          echo 'CONFIG_PID_NS=y' >> .config
+          echo 'CONFIG_NET_NS=y' >> .config
+          echo 'CONFIG_BPF_SYSCALL=y' >> .config
+          echo 'CONFIG_SECCOMP=y' >> .config
+          echo 'CONFIG_APPARMOR=y' >> .config
+          echo 'CONFIG_SECURITY_APPARMOR=y' >> .config
+          echo 'CONFIG_SECURITY_SELINUX=y' >> .config
+          echo 'CONFIG_OVERLAY_FS=y' >> .config
+          echo 'CONFIG_DEVTMPFS=y' >> .config
+          echo 'CONFIG_DEVTMPFS_MOUNT=y' >> .config
+          make olddefconfig
+
+      - name: Compile kernel
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          make -j$(nproc) Image.gz dtbs modules
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p out
+          cp arch/arm64/boot/Image.gz out/
+          find . -name "*.dtb" -exec cat {} + > out/Image.gz-dtb
+          make modules_install INSTALL_MOD_PATH=out
+          tar czf modules.tar.gz -C out/lib/modules .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: kernel-build
+          path: out/
