@@ -1,4 +1,4 @@
-name: Build debug kernel
+name: Build debug kernel with LXC/Docker enabled
 on:
   workflow_dispatch:
 
