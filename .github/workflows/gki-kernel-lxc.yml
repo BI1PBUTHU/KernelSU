@@ -225,15 +225,30 @@ jobs:
               exit 1
             fi
 
-            echo "[+] Merging LXC/Docker configurations from $CONFIG_FRAGMENT into .config"
-            # Use merge_config.sh to merge the configuration fragment
-            ./scripts/kconfig/merge_config.sh -m .config "$CONFIG_FRAGMENT"
+            echo "[+] Setting LXC/Docker configurations using scripts/config"
+            # 使用 scripts/config 工具逐个设置配置项，确保依赖关系被正确处理
+            while read -r line; do
+              # 忽略空行和注释
+              [[ -z "$line" || "$line" =~ ^# ]] && continue
+              key=$(echo "$line" | cut -d '=' -f1)
+              value=$(echo "$line" | cut -d '=' -f2)
+              if [ "$value" = "y" ]; then
+                ./scripts/config --enable "$key"
+              elif [ "$value" = "m" ]; then
+                ./scripts/config --module "$key"
+              elif [ "$value" = "n" ]; then
+                ./scripts/config --disable "$key"
+              fi
+            done < "$CONFIG_FRAGMENT"
 
-            # Debug: Show the last few lines of .config after merging
-            echo "[+] Last 20 lines of .config after merging config fragment:"
+            # 重新生成依赖关系
+            make olddefconfig
+
+            # Debug: 显示合并配置后的 .config 文件的最后 20 行
+            echo "[+] Last 20 lines of .config after setting configurations:"
             tail -n 20 .config
 
-            # Debug: Check if necessary configurations are set (y or m)
+            # Debug: 验证必要的配置项是否被正确设置为 y 或 m
             REQUIRED_CONFIGS=(
               CONFIG_CGROUPS
               CONFIG_NAMESPACES
@@ -242,6 +257,7 @@ jobs:
               CONFIG_OVERLAY_FS
               CONFIG_DEVTMPFS
               CONFIG_DEVTMPFS_MOUNT
+              CONFIG_TMPFS
               CONFIG_CGROUP_CPUACCT
               CONFIG_CGROUP_FREEZER
               CONFIG_CGROUP_SCHED
@@ -250,6 +266,8 @@ jobs:
               CONFIG_KEYS
               CONFIG_VETH
               CONFIG_BRIDGE
+              CONFIG_BRIDGE_NETFILTER
+              CONFIG_BRIDGE_VLAN_FILTERING
               CONFIG_IP_NF_FILTER
               CONFIG_IP_NF_MANGLE
               CONFIG_IP_NF_TARGET_MASQUERADE
@@ -289,6 +307,8 @@ jobs:
               CONFIG_BTRFS_FS
               CONFIG_BTRFS_FS_POSIX_ACL
               CONFIG_ZFS
+              CONFIG_HUGETLB_PAGE
+              CONFIG_CGROUP_HUGETLB
             )
 
             for config in "${REQUIRED_CONFIGS[@]}"; do
@@ -296,19 +316,19 @@ jobs:
             done
           fi
 
-          # Ensure all new options are set and existing ones aren't changed
+          # 确保所有新的配置项被设置，并且现有的配置项没有被更改
           make olddefconfig
 
-          # Optional: Verify all configurations are set
-          for config in CONFIG_CGROUPS CONFIG_NAMESPACES CONFIG_NET_NS CONFIG_UTS_NS CONFIG_OVERLAY_FS CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT CONFIG_CGROUP_CPUACCT CONFIG_CGROUP_FREEZER CONFIG_CGROUP_SCHED CONFIG_CPUSETS CONFIG_MEMCG CONFIG_KEYS CONFIG_VETH CONFIG_BRIDGE CONFIG_IP_NF_FILTER CONFIG_IP_NF_MANGLE CONFIG_IP_NF_TARGET_MASQUERADE CONFIG_IP_NF_NAT CONFIG_NF_NAT CONFIG_CGROUP_BPF CONFIG_SECCOMP CONFIG_SECCOMP_FILTER CONFIG_MEMCG_SWAP CONFIG_BLK_CGROUP CONFIG_CGROUP_NET_PRIO CONFIG_FAIR_GROUP_SCHED CONFIG_IP_NF_TARGET_REDIRECT CONFIG_SECURITY_SELINUX CONFIG_EXT4_FS CONFIG_EXT4_FS_POSIX_ACL CONFIG_EXT4_FS_SECURITY CONFIG_CRYPTO CONFIG_CRYPTO_AEAD CONFIG_CRYPTO_GCM CONFIG_CRYPTO_SEQIV CONFIG_CRYPTO_GHASH CONFIG_XFRM CONFIG_XFRM_USER CONFIG_XFRM_ALGO CONFIG_INET_ESP CONFIG_NETFILTER_XT_MATCH_BPF CONFIG_VXLAN CONFIG_BRIDGE_VLAN_FILTERING CONFIG_IPVLAN CONFIG_MACVLAN CONFIG_DUMMY CONFIG_NF_NAT_FTP CONFIG_NF_CONNTRACK_FTP CONFIG_NF_NAT_TFTP CONFIG_NF_CONNTRACK_TFTP CONFIG_BTRFS_FS CONFIG_BTRFS_FS_POSIX_ACL CONFIG_ZFS; do
-            grep -q "^${config}=y" .config || {
+          # 可选：再次验证所有配置项是否被正确设置
+          for config in CONFIG_CGROUPS CONFIG_NAMESPACES CONFIG_NET_NS CONFIG_UTS_NS CONFIG_OVERLAY_FS CONFIG_DEVTMPFS CONFIG_DEVTMPFS_MOUNT CONFIG_TMPFS CONFIG_CGROUP_CPUACCT CONFIG_CGROUP_FREEZER CONFIG_CGROUP_SCHED CONFIG_CPUSETS CONFIG_MEMCG CONFIG_KEYS CONFIG_VETH CONFIG_BRIDGE CONFIG_BRIDGE_NETFILTER CONFIG_BRIDGE_VLAN_FILTERING CONFIG_IP_NF_FILTER CONFIG_IP_NF_MANGLE CONFIG_IP_NF_TARGET_MASQUERADE CONFIG_IP_NF_NAT CONFIG_NF_NAT CONFIG_CGROUP_BPF CONFIG_SECCOMP CONFIG_SECCOMP_FILTER CONFIG_MEMCG_SWAP CONFIG_BLK_CGROUP CONFIG_CGROUP_NET_PRIO CONFIG_FAIR_GROUP_SCHED CONFIG_IP_NF_TARGET_REDIRECT CONFIG_SECURITY_SELINUX CONFIG_EXT4_FS CONFIG_EXT4_FS_POSIX_ACL CONFIG_EXT4_FS_SECURITY CONFIG_CRYPTO CONFIG_CRYPTO_AEAD CONFIG_CRYPTO_GCM CONFIG_CRYPTO_SEQIV CONFIG_CRYPTO_GHASH CONFIG_XFRM CONFIG_XFRM_USER CONFIG_XFRM_ALGO CONFIG_INET_ESP CONFIG_NETFILTER_XT_MATCH_BPF CONFIG_VXLAN CONFIG_BRIDGE_VLAN_FILTERING CONFIG_IPVLAN CONFIG_MACVLAN CONFIG_DUMMY CONFIG_NF_NAT_FTP CONFIG_NF_CONNTRACK_FTP CONFIG_NF_NAT_TFTP CONFIG_NF_CONNTRACK_TFTP CONFIG_BTRFS_FS CONFIG_BTRFS_FS_POSIX_ACL CONFIG_ZFS CONFIG_HUGETLB_PAGE CONFIG_CGROUP_HUGETLB; do
+            grep -q "^${config}=[ym]" .config || {
               echo "ERROR: ${config} is not set correctly in .config"
               exit 1
             }
           done
           echo "[+] All LXC/Docker configurations are correctly set in .config"
 
-          # Save the modified .config as defconfig
+          # 保存修改后的 .config 为 defconfig
           make savedefconfig
           if [ -f "defconfig" ]; then
             echo "[+] Generated defconfig successfully"
@@ -318,14 +338,14 @@ jobs:
           fi
           echo "[+] Saved modified .config as defconfig"
 
-          # Do not move defconfig to gki_defconfig to avoid mismatch
+          # 不要将 defconfig 移动到 gki_defconfig 以避免不匹配
           # mv defconfig arch/arm64/configs/gki_defconfig
 
           make mrproper
 
           cd ..
 
-          # Proceed with build without modifying gki_defconfig
+          # 继续构建，不修改 gki_defconfig
           if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
             export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
@@ -336,7 +356,7 @@ jobs:
             tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
           fi
 
-          # Clean up after build
+          # 构建后清理
           cd common/
           make clean
           cd ..
@@ -352,6 +372,7 @@ jobs:
             CONFIG_OVERLAY_FS
             CONFIG_DEVTMPFS
             CONFIG_DEVTMPFS_MOUNT
+            CONFIG_TMPFS
             CONFIG_CGROUP_CPUACCT
             CONFIG_CGROUP_FREEZER
             CONFIG_CGROUP_SCHED
@@ -360,6 +381,8 @@ jobs:
             CONFIG_KEYS
             CONFIG_VETH
             CONFIG_BRIDGE
+            CONFIG_BRIDGE_NETFILTER
+            CONFIG_BRIDGE_VLAN_FILTERING
             CONFIG_IP_NF_FILTER
             CONFIG_IP_NF_MANGLE
             CONFIG_IP_NF_TARGET_MASQUERADE
@@ -399,14 +422,12 @@ jobs:
             CONFIG_BTRFS_FS
             CONFIG_BTRFS_FS_POSIX_ACL
             CONFIG_ZFS
+            CONFIG_HUGETLB_PAGE
+            CONFIG_CGROUP_HUGETLB
           )
 
           for config in "${REQUIRED_CONFIGS[@]}"; do
-            grep -q "^${config}=[ym]" .config || {
-              echo "ERROR: ${config} is not set correctly in .config"
-              exit 1
-            }
-            echo "[+] ${config} is set correctly."
+            grep -q "^${config}=[ym]" .config && echo "[+] ${config} is set correctly" || { echo "[-] ${config} is not set correctly"; exit 1; }
           done
           echo "[+] All LXC/Docker configurations are correctly set in .config"
 
