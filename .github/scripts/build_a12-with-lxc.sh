@@ -33,28 +33,40 @@ build_from_image() {
     # LXC 和 Docker 集成部分
     if [ "${ENABLE_LXC}" = "true" ]; then
         echo "[+] Enabling LXC integration"
-        # 添加 LXC 集成相关命令，例如修改内核配置、应用补丁等
-        echo "CONFIG_LXC=y" >> .config
-        echo "CONFIG_CGROUPS=y" >> .config
-        echo "CONFIG_MEMCG=y" >> .config
-        make olddefconfig
-        # 应用其他必要的补丁或配置
-        # 例如，您可以调用其他脚本或命令来应用特定的 LXC 补丁
-        # echo "[+] Applying LXC patches"
-        # patch -p1 < /path/to/lxc-patch.patch
+        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+        rm -rf utils
+        git clone https://github.com/tomxi1997/lxc-docker-support-for-android.git utils
+        echo 'source "utils/Kconfig"' >> "Kconfig"
+
+        echo "CONFIG_LXC=y" >> arch/${ARCH}/configs/${KERNEL_CONFIG}
+        echo "CONFIG_CGROUPS=y" >> arch/${ARCH}/configs/${KERNEL_CONFIG}
+        echo "CONFIG_MEMCG=y" >> arch/${ARCH}/configs/${KERNEL_CONFIG}
+        echo "CONFIG_DOCKER=y" >> arch/${ARCH}/configs/${KERNEL_CONFIG}
+
+        sed -i '/CONFIG_ANDROID_PARANOID_NETWORK/d' arch/${ARCH}/configs/${KERNEL_CONFIG}
+        echo "# CONFIG_ANDROID_PARANOID_NETWORK is not set" >> arch/${ARCH}/configs/${KERNEL_CONFIG}
+
+        chmod +x utils/runcpatch.sh
+        if [ -f kernel/cgroup/cgroup.c ]; then
+            sh utils/runcpatch.sh kernel/cgroup/cgroup.c
+        fi
+
+        if [ -f kernel/cgroup.c ]; then
+            sh utils/runcpatch.sh kernel/cgroup.c
+        fi
+
+        if [ -f net/netfilter/xt_qtaguid.c ]; then
+            patch -p0 < utils/xt_qtaguid.patch
+        fi
     fi
 
     if [ "${ENABLE_DOCKER}" = "true" ]; then
         echo "[+] Enabling Docker integration"
-        # 添加 Docker 集成相关命令，例如修改内核配置、应用补丁等
-        echo "CONFIG_DOCKER=y" >> .config
-        make olddefconfig
-        # 应用其他必要的补丁或配置
-        # echo "[+] Applying Docker patches"
-        # patch -p1 < /path/to/docker-patch.patch
+        # 在此处添加任何与 Docker 相关的额外配置或补丁
+        # 例如，应用特定的 Docker 补丁
+        # patch -p1 < utils/docker-patch.patch
     fi
 
-    # 如果启用了 LXC 和 Docker，需要重新编译配置
     if [ "${ENABLE_LXC}" = "true" ] || [ "${ENABLE_DOCKER}" = "true" ]; then
         echo "[+] Recompiling kernel configuration after enabling LXC/Docker"
         make olddefconfig
