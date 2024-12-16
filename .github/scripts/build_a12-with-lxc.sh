@@ -30,27 +30,6 @@ build_from_image() {
     echo '[+] Building Image.gz'
     $GZIP -n -k -f -9 Image >Image.gz
 
-    echo '[+] Building boot.img'
-    $MKBOOTIMG --header_version 4 --kernel Image --output boot.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${PATCH_LEVEL}"
-    $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
-
-    echo '[+] Building boot-gz.img'
-    $MKBOOTIMG --header_version 4 --kernel Image.gz --output boot-gz.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${PATCH_LEVEL}"
-    $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
-
-    echo '[+] Building boot-lz4.img'
-    $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${PATCH_LEVEL}"
-    $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
-
-    echo '[+] Compress images'
-    for image in boot*.img; do
-        $GZIP -n -f -9 "$image"
-        mv "$image".gz "${1//Image-/}"-"$image".gz
-    done
-
-    echo "[+] Images to upload"
-    find . -type f -name "*.gz"
-
     # LXC 和 Docker 集成部分
     if [ "${ENABLE_LXC}" = "true" ]; then
         echo "[+] Enabling LXC integration"
@@ -81,18 +60,15 @@ build_from_image() {
         make olddefconfig
     fi
 
-    echo "[+] Building Image.gz"
-    $GZIP -n -k -f -9 Image >Image.gz
-
-    echo "[+] Building boot.img"
+    echo '[+] Building boot.img'
     $MKBOOTIMG --header_version 4 --kernel Image --output boot.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${PATCH_LEVEL}"
     $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
 
-    echo "[+] Building boot-gz.img"
+    echo '[+] Building boot-gz.img'
     $MKBOOTIMG --header_version 4 --kernel Image.gz --output boot-gz.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${PATCH_LEVEL}"
     $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-gz.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
 
-    echo "[+] Building boot-lz4.img"
+    echo '[+] Building boot-lz4.img'
     $MKBOOTIMG --header_version 4 --kernel Image.lz4 --output boot-lz4.img --ramdisk out/ramdisk --os_version 12.0.0 --os_patch_level "${PATCH_LEVEL}"
     $AVBTOOL add_hash_footer --partition_name boot --partition_size $((64 * 1024 * 1024)) --image boot-lz4.img --algorithm SHA256_RSA2048 --key ../kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
 
