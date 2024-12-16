@@ -32,21 +32,23 @@ jobs:
             os_patch_level: 2024-05
           - sub_level: 218
             os_patch_level: 2024-08
-    uses: ./.github/workflows/gki-kernel-with-lxc.yml
-    secrets: inherit
-    with:
-      version: android12-5.10
-      version_name: android12-5.10.${{ matrix.sub_level }}
-      tag: android12-5.10-${{ matrix.os_patch_level }}
-      os_patch_level: ${{ matrix.os_patch_level }}
-      patch_path: "5.10"
-      ENABLE_LXC: true
-      ENABLE_DOCKER: true
-      # 其他需要传递给 gki-kernel-with-lxc.yml 的参数
-    env:
-      ENABLE_LXC: true
-      ENABLE_DOCKER: true
-      # 其他全局环境变量
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Call reusable workflow
+        uses: ./.github/workflows/gki-kernel-with-lxc.yml
+        with:
+          version: android12-5.10
+          version_name: android12-5.10.${{ matrix.sub_level }}
+          tag: android12-5.10-${{ matrix.os_patch_level }}
+          os_patch_level: ${{ matrix.os_patch_level }}
+          patch_path: "5.10"
+          ENABLE_LXC: true
+          ENABLE_DOCKER: true
+        env:
+          ENABLE_LXC: true
+          ENABLE_DOCKER: true
 
   upload-artifacts:
     needs: build-kernel-with-docker-lxc
@@ -71,7 +73,6 @@ jobs:
       - name: List artifacts
         run: |
           tree
-
       - name: Download prebuilt toolchain
         run: |
           AOSP_MIRROR=https://android.googlesource.com
@@ -80,7 +81,6 @@ jobs:
           git clone $AOSP_MIRROR/kernel/prebuilts/build-tools -b $BRANCH --depth 1 kernel-build-tools
           git clone $AOSP_MIRROR/platform/system/tools/mkbootimg -b $BRANCH --depth 1
           pip3 install telethon
-
       - name: Set boot sign key
         env:
           BOOT_SIGN_KEY: ${{ secrets.BOOT_SIGN_KEY }}
@@ -88,7 +88,6 @@ jobs:
           if [ ! -z "$BOOT_SIGN_KEY" ]; then
             echo "$BOOT_SIGN_KEY" > ./kernel-build-tools/linux-x86/share/avb/testkey_rsa2048.pem
           fi
-
       - name: Bot session cache
         id: bot_session_cache
         uses: actions/cache@v4
