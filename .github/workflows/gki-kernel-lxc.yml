@@ -255,11 +255,11 @@ jobs:
             fi
 
   
-            echo "[+] Checking existence of target directory: "../arch/arm64/configs"
+            echo "Checking existence of target directory: ../arch/arm64/configs"
             if [ -d "../arch/arm64/configs" ]; then
-              echo "[+] Target directory exists."
+              echo "Target directory exists."
             else
-              echo "[+] Target directory does not exist. Creating it..."
+              echo "Target directory does not exist"
             fi
             # Backup the original gki_defconfig if it exists
             if [ -f "../arch/arm64/configs/gki_defconfig" ]; then
@@ -268,7 +268,8 @@ jobs:
             fi
 
             # Save the modified .config as gki_defconfig in the correct directory
-            mv .config ../arch/arm64/configs/gki_defconfig
+            mv .config gki_defconfig
+            mv gki_defconfig ../arch/arm64/configs/gki_defconfig
             echo "[+] Saved modified .config as gki_defconfig"
 
             make mrproper
