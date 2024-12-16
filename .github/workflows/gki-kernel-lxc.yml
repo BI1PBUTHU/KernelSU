@@ -212,7 +212,7 @@ jobs:
             cd common
             # Ensure .config exists or create a default one
             if [ ! -f ".config" ]; then
-              make defconfig
+              make gik_defconfig
             fi
 
             # Define a list of necessary kernel configurations for LXC/Docker support
@@ -247,15 +247,24 @@ jobs:
             # Ensure all new options are set and existing ones aren't changed
             make olddefconfig
 
-            # Save the .config file before cleaning
-            cp .config .config.saved
+            # Backup the original gki_defconfig if it exists
+            if [ -f "arch/arm64/configs/gki_defconfig" ]; then
+              mv arch/arm64/configs/gki_defconfig arch/arm64/configs/gki_defconfig.bak
+              echo "[+] Backed up original gki_defconfig as gki_defconfig.bak"
+            fi
+
+            # Save the modified .config as gki_defconfig in the correct directory
+            cp .config arch/arm64/configs/gki_defconfig
+            echo "[+] Saved modified .config as gki_defconfig"
+
             cd ..
           fi
 
-          # Clean unnecessary files without touching the .config file
+          # Clean the source tree thoroughly
           cd common/
-          # Use 'make clean' instead of 'make mrproper' to preserve .config
-          make clean
+          make mrproper
+          cd ..
+
           # Optionally, use git clean for more thorough cleanup while preserving .config
           # git clean -xdf -e .config
           cd ..
