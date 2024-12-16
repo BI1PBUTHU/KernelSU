@@ -252,6 +252,8 @@ jobs:
             REQUIRED_CONFIGS=(
               CONFIG_CGROUPS
               CONFIG_NAMESPACES
+              CONFIG_INET
+              CONFIG_NET
               CONFIG_NET_NS
               CONFIG_UTS_NS
               CONFIG_OVERLAY_FS
