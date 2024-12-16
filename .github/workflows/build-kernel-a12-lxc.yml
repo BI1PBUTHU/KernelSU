@@ -88,7 +88,7 @@ jobs:
           export VERSION=$(($(git rev-list --count HEAD) + 10200))
           echo "VERSION: $VERSION"
           cd -
-          bash $GITHUB_WORKSPACE/KernelSU/.github/scripts/build_a12-lxc.sh
+          bash $GITHUB_WORKSPACE/KernelSU/.github/scripts/build_a12.sh
       - name: Display structure of boot files
         run: ls -R
       - name: Upload images artifact
