@@ -208,11 +208,6 @@ jobs:
         run: |
           # Setup for LXC/Docker configurations if enabled
           cd common
-          # Ensure gki_defconfig exists
-          if [ ! -f "arch/arm64/configs/gki_defconfig" ]; then
-            echo "[-] gki_defconfig not found!"
-            exit 1
-          fi
 
           # Define the path to the config fragment
           CONFIG_FRAGMENT=$GITHUB_WORKSPACE/KernelSU/.github/configs/lxc_docker.config
