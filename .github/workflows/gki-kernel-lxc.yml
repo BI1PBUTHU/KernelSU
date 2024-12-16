@@ -306,6 +306,7 @@ jobs:
               fi
             done
           fi
+          make mrproper
           cd ..
           # 继续构建 gki_defconfig
           if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
