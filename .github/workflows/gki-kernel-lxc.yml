@@ -354,6 +354,9 @@ jobs:
           make mrproper
           sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
           cd ..
+          echo "当前系统架构: $(uname -m)"
+          echo "当前系统架构: $(arch)"
+
           # 继续构建 gki_defconfig
           if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
             export KSU_EXPECTED_SIZE=${{ vars.EXPECTED_SIZE }}
