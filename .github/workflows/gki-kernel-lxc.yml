@@ -326,7 +326,7 @@ jobs:
 
           # 保存修改后的 .config 为 defconfig
           make savedefconfig
-          rm -rf .config
+          # rm -rf .config
           rm -rf include/config
           rm -rf arch/arm64/include/generated
           if [ -f "defconfig" ]; then
@@ -341,7 +341,7 @@ jobs:
           mv defconfig arch/arm64/configs/gki_defconfig
 
           # make mrproper
-          sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
+          # sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
 
           cd ..
 
@@ -351,7 +351,7 @@ jobs:
             export KSU_EXPECTED_HASH=${{ vars.EXPECTED_HASH }}
           fi
           if [ -e build/build.sh ]; then
-            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang"
+            LTO=thin BUILD_CONFIG=common/build.config.gki.aarch64 build/build.sh CC="/usr/bin/ccache clang" SKIP_DEFCONFIG=1 SKIP_MRPROPER=1
           else
             tools/bazel run --disk_cache=/home/runner/.cache/bazel --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
           fi
