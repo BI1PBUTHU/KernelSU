@@ -331,6 +331,7 @@ jobs:
                 # exit 1
               fi
             done
+          make gki_defconfig
           make mrproper
           cd ..
           # 继续构建 gki_defconfig
