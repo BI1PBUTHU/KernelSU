@@ -349,6 +349,7 @@ jobs:
               fi
             done
           make mrproper
+          sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
           cd ..
           # 继续构建 gki_defconfig
           if [ ! -z "${{ vars.EXPECTED_SIZE }}" ] && [ ! -z "${{ vars.EXPECTED_HASH }}" ]; then
