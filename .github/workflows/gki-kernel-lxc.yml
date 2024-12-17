@@ -52,7 +52,7 @@ on:
       build_lkm:
         required: false
         type: boolean
-        default: false
+        default: true
       enable_lxc_docker:
         required: false
         type: boolean
