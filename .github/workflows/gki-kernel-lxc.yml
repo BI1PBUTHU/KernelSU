@@ -236,28 +236,28 @@ jobs:
                   continue
               fi
 
-                # 逐行读取配置片段文件
-                while IFS= read -r line; do
-                  # 跳过空行和注释
-                  if [[ -z "$line" || "$line" =~ ^# ]]; then
-                      continue
-                  fi
+              # 逐行读取配置片段文件
+              while IFS= read -r line; do
+                # 跳过空行和注释
+                if [[ -z "$line" || "$line" =~ ^# ]]; then
+                    continue
+                fi
 
-                  # 提取配置键和值
-                  key=$(echo "$line" | cut -d '=' -f1)
-                  value=$(echo "$line" | cut -d '=' -f2-)
+                # 提取配置键和值
+                key=$(echo "$line" | cut -d '=' -f1)
+                value=$(echo "$line" | cut -d '=' -f2-)
 
-                  # 检查目标配置文件中是否已存在该配置项
-                  if grep -q "^${key}=" "$TARGET_CONFIG"; then
-                      # 使用新值替换现有值
-                      sed -i "s|^${key}=.*|${line}|" "$TARGET_CONFIG"
+                # 检查目标配置文件中是否已存在该配置项
+                if grep -q "^${key}=" "$TARGET_CONFIG"; then
+                    # 使用新值替换现有值
+                    sed -i "s|^${key}=.*|${line}|" "$TARGET_CONFIG"
   
-                      echo "已更新配置项: ${key}=${value}"
-                  else
-                      # 如果不存在，则添加到文件末尾
-                      echo "$line" >> "$TARGET_CONFIG"
-                      echo "已添加新配置项: ${key}=${value}"
-                  fi
+                    echo "已更新配置项: ${key}=${value}"
+                else
+                    # 如果不存在，则添加到文件末尾
+                    echo "$line" >> "$TARGET_CONFIG"
+                    echo "已添加新配置项: ${key}=${value}"
+                fi
               done < "$CONFIG_FRAGMENT"
 
               echo "配置已成功更新到 $TARGET_CONFIG"
@@ -270,11 +270,11 @@ jobs:
           sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
           
           # 查看 arm64 的 gki_defconfig
-          echo "arm64 的 gki_defconfig为"
+          echo "arm64 的 添加的 gki_defconfig 项为"
           tail -n 100 arch/arm64/configs/gki_defconfig
           echo "-----------------------------------------"
           # 查看 x86 的 gki_defconfig
-          echo "x86 的 添加的gki_defconfig项为"
+          echo "x86 的 添加的 gki_defconfig 项为"
           tail -n 100 arch/x86/configs/gki_defconfig
           echo "-----------------------------------------"
 
