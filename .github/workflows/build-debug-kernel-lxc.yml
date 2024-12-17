@@ -7,8 +7,8 @@ jobs:
     uses: ./.github/workflows/gki-kernel-lxc.yml
     with:
       version: android12-5.10
-      version_name: android12-5.10.218
-      tag: android12-5.10-2024-08
-      os_patch_level: 2024-08
+      version_name: android12-5.10.198
+      tag: android12-5.10-2024-01
+      os_patch_level: 2024-01
       patch_path: "5.10"
       debug: true
