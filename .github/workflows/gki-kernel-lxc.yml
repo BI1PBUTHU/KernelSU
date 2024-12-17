@@ -210,7 +210,12 @@ jobs:
           cd common
           # 定义配置片段和目标配置文件的路径
           CONFIG_FRAGMENT="$GITHUB_WORKSPACE/KernelSU/.github/configs/lxc_docker.config"
-          TARGET_CONFIG="arch/arm64/configs/gki_defconfig"
+
+          # 定义目标配置文件数组
+          TARGET_CONFIGS=(
+            "arch/arm64/configs/gki_defconfig"
+            "arch/x86/configs/gki_defconfig"
+          )
 
           # 检查配置片段文件是否存在
           if [[ ! -f "$CONFIG_FRAGMENT" ]]; then
@@ -218,31 +223,46 @@ jobs:
             exit 1
           fi
 
-          # 备份原始的目标配置文件
-          cp "$TARGET_CONFIG" "${TARGET_CONFIG}.bak"
+          # 遍历每个目标配置文件
+          for TARGET_CONFIG in "${TARGET_CONFIGS[@]}"; do
+              echo "处理目标配置文件: $TARGET_CONFIG"
 
-          # 逐行读取配置片段文件
-          while IFS= read -r line; do
-            # 跳过空行和注释
-            if [[ -z "$line" || "$line" =~ ^# ]]; then
-              continue
-            fi
+              # 检查目标配置文件是否存在
+              if [[ ! -f "$TARGET_CONFIG" ]]; then
+                  echo "目标配置文件不存在: $TARGET_CONFIG"
+                  # 根据需要，可以选择是否继续处理其他文件或退出
+                  # 这里选择继续
+                  continue
+              fi
 
-            # 提取配置键和值
-            key=$(echo "$line" | cut -d '=' -f1)
-            value=$(echo "$line" | cut -d '=' -f2-)
+                # 逐行读取配置片段文件
+                while IFS= read -r line; do
+                  # 跳过空行和注释
+                  if [[ -z "$line" || "$line" =~ ^# ]]; then
+                      continue
+                  fi
 
-            # 检查目标配置文件中是否已存在该配置项
-            if grep -q "^${key}=" "$TARGET_CONFIG"; then
-              # 使用新值替换现有值
-              sed -i "s|^${key}=.*|${line}|" "$TARGET_CONFIG"
-            else
-              # 如果不存在，则添加到文件末尾
-              echo "$line" >> "$TARGET_CONFIG"
-            fi
-          done < "$CONFIG_FRAGMENT"
+                  # 提取配置键和值
+                  key=$(echo "$line" | cut -d '=' -f1)
+                  value=$(echo "$line" | cut -d '=' -f2-)
 
-          echo "配置已成功更新到 $TARGET_CONFIG"
+                  # 检查目标配置文件中是否已存在该配置项
+                  if grep -q "^${key}=" "$TARGET_CONFIG"; then
+                      # 使用新值替换现有值
+                      sed -i "s|^${key}=.*|${line}|" "$TARGET_CONFIG"
+                      echo "已更新配置项: ${key}=${value}"
+                  else
+                      # 如果不存在，则添加到文件末尾
+                      echo "$line" >> "$TARGET_CONFIG"
+                      echo "已添加新配置项: ${key}=${value}"
+                  fi
+              done < "$CONFIG_FRAGMENT"
+
+              echo "配置已成功更新到 $TARGET_CONFIG"
+              echo "-----------------------------------------"
+          done
+
+          echo "所有目标配置文件已处理完成。"
           
           cp arch/arm64/configs/gki_defconfig arch/x86/configs/gki_defconfig
           make mrproper
