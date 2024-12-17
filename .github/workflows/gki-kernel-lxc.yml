@@ -210,6 +210,8 @@ jobs:
           cd common
           # 定义配置片段和目标配置文件的路径
           CONFIG_FRAGMENT="$GITHUB_WORKSPACE/KernelSU/.github/configs/lxc_docker.config"
+          echo "#  CONFIG_ANDROID_PARANOID_NETWORK is not set" >> arch/arm64/configs/gki_defconfig
+          echo "#  CONFIG_ANDROID_PARANOID_NETWORK is not set" >> arch/x86/configs/gki_defconfig
 
 
           # 定义目标配置文件数组
