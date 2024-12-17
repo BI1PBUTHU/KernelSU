@@ -263,7 +263,7 @@ jobs:
           done
 
           echo "所有目标配置文件已处理完成。"
-          export ARCH=arm64
+          # export ARCH=arm64
           make mrproper
           sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
           
