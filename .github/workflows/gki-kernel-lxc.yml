@@ -360,6 +360,12 @@ jobs:
           cp arch/arm64/configs/gki_defconfig arch/x86/configs/gki_defconfig
           make mrproper
           sed -i '/POST_DEFCONFIG_CMDS="check_defconfig"/d' "build.config.gki"
+          
+          # 查看 arm64 的 gki_defconfig
+          cat arch/arm64/configs/gki_defconfig
+          # 查看 x86 的 gki_defconfig
+          cat arch/x86/configs/gki_defconfig
+
           cd ..
           echo "当前系统架构: $(uname -m)"
 
