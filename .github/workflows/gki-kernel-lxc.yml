@@ -210,6 +210,11 @@ jobs:
           cd common
           # 定义配置片段和目标配置文件的路径
           CONFIG_FRAGMENT="$GITHUB_WORKSPACE/KernelSU/.github/configs/lxc_docker.config"
+          ls -l "arch/arm64/configs"
+          ls -l "arch/x86/configs"
+          ls -l "arch"
+          chmod u+w "arch/arm64/configs/gki_defconfig"
+          chmod u+w "arch/x86/configs/gki_defconfig"
 
           # 定义目标配置文件数组
           TARGET_CONFIGS=(
