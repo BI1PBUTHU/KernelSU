@@ -210,11 +210,7 @@ jobs:
           cd common
           # 定义配置片段和目标配置文件的路径
           CONFIG_FRAGMENT="$GITHUB_WORKSPACE/KernelSU/.github/configs/lxc_docker.config"
-          ls -l "arch/arm64/configs"
-          ls -l "arch/x86/configs"
-          ls -l "arch"
-          chmod u+w "arch/arm64/configs/gki_defconfig"
-          chmod u+w "arch/x86/configs/gki_defconfig"
+
 
           # 定义目标配置文件数组
           TARGET_CONFIGS=(
@@ -255,6 +251,7 @@ jobs:
                   if grep -q "^${key}=" "$TARGET_CONFIG"; then
                       # 使用新值替换现有值
                       sed -i "s|^${key}=.*|${line}|" "$TARGET_CONFIG"
+  
                       echo "已更新配置项: ${key}=${value}"
                   else
                       # 如果不存在，则添加到文件末尾
@@ -274,11 +271,11 @@ jobs:
           
           # 查看 arm64 的 gki_defconfig
           echo "arm64 的 gki_defconfig为"
-          cat arch/arm64/configs/gki_defconfig
+          tail -n 100 arch/arm64/configs/gki_defconfig
           echo "-----------------------------------------"
           # 查看 x86 的 gki_defconfig
-          echo "x86 的 gki_defconfig为"
-          cat arch/x86/configs/gki_defconfig
+          echo "x86 的 添加的gki_defconfig项为"
+          tail -n 100 arch/x86/configs/gki_defconfig
           echo "-----------------------------------------"
 
           cd ..
